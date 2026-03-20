@@ -1,0 +1,29 @@
+---
+version: 1.5.4
+title: recursive type test
+file: ./test/glance_typed_test.gleam
+test_name: recursive_type_test
+---
+---
+name: test
+types:
+- name: Tree
+  type: "(0) test.Tree(0)"
+  publicity: public
+  opaque: false
+  parameters:
+  - e
+  variants:
+  - name: Node
+    type: "(0) fn(test.Tree(0), test.Tree(0)) -> test.Tree(0)"
+    fields:
+    - label: left
+      annotation: "Tree(e)"
+    - label: right
+      annotation: "Tree(e)"
+  - name: Leaf
+    type: "(0) fn(0) -> test.Tree(0)"
+    fields:
+    - label: data
+      annotation: e
+

@@ -1,0 +1,45 @@
+---
+version: 1.5.4
+title: imported function call test
+file: ./test/glance_typed_test.gleam
+test_name: imported_function_call_test
+---
+---
+name: example
+functions:
+- name: optional_square
+  type: "() fn(gleam/option.Option(gleam.Int)) -> gleam/option.Option(gleam.Int)"
+  publicity: public
+  parameters:
+  - type: "gleam/option.Option(gleam.Int)"
+    name: maybe
+  body:
+  - kind: call
+    type: "gleam/option.Option(gleam.Int)"
+    function:
+      kind: function
+      type: "fn(gleam/option.Option(gleam.Int), fn(gleam.Int) -> gleam.Int) -> gleam/option.Option(gleam.Int)"
+      module: "gleam/option"
+      name: map
+    arguments:
+    - kind: local_variable
+      type: "gleam/option.Option(gleam.Int)"
+      name: maybe
+    - kind: fn
+      type: "fn(gleam.Int) -> gleam.Int"
+      parameters:
+      - type: "gleam.Int"
+        name: n
+      body:
+      - kind: binary_operator
+        type: "gleam.Int"
+        name: "*"
+        left:
+          kind: local_variable
+          type: "gleam.Int"
+          name: n
+        right:
+          kind: local_variable
+          type: "gleam.Int"
+          name: n
+

@@ -1,0 +1,38 @@
+---
+version: 1.5.4
+title: type alias test
+file: ./test/glance_typed_test.gleam
+test_name: type_alias_test
+---
+---
+name: test
+type_aliases:
+- name: Pair
+  type: "(0, 1) #(0, 1)"
+  publicity: public
+  parameters:
+  - a
+  - b
+  aliased: "#(a, b)"
+functions:
+- name: pair_of_pairs
+  type: "(0, 1) fn(#(0, 1), #(0, 1)) -> #(#(0, 1), #(0, 1))"
+  publicity: public
+  parameters:
+  - type: "#(0, 1)"
+    name: p
+    annotation: "Pair(a, b)"
+  - type: "#(0, 1)"
+    name: q
+    annotation: "Pair(a, b)"
+  body:
+  - kind: tuple
+    type: "#(#(0, 1), #(0, 1))"
+    elements:
+    - kind: local_variable
+      type: "#(0, 1)"
+      name: p
+    - kind: local_variable
+      type: "#(0, 1)"
+      name: q
+

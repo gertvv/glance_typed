@@ -1,0 +1,29 @@
+---
+version: 1.5.4
+title: higher order function test
+file: ./test/glance_typed_test.gleam
+test_name: higher_order_function_test
+---
+---
+name: test
+functions:
+- name: apply
+  type: "(0, 1) fn(fn(0) -> 1, 0) -> 1"
+  publicity: public
+  parameters:
+  - type: "fn(0) -> 1"
+    name: f
+  - type: "0"
+    name: x
+  body:
+  - kind: call
+    type: "1"
+    function:
+      kind: local_variable
+      type: "fn(0) -> 1"
+      name: f
+    arguments:
+    - kind: local_variable
+      type: "0"
+      name: x
+

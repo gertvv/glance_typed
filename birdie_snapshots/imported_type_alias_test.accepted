@@ -1,0 +1,14 @@
+---
+version: 1.5.4
+title: imported type alias test
+file: ./test/glance_typed_test.gleam
+test_name: imported_type_alias_test
+---
+---
+name: example
+type_aliases:
+- name: OptionalInt
+  type: "() gleam/option.Option(gleam.Int)"
+  publicity: public
+  aliased: "Option(Int)"
+

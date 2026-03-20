@@ -1,0 +1,70 @@
+---
+version: 1.5.4
+title: imported constructor pattern test
+file: ./test/glance_typed_test.gleam
+test_name: imported_constructor_pattern_test
+---
+---
+name: example
+functions:
+- name: optional_double
+  type: "() fn(gleam/option.Option(gleam.Int)) -> gleam/option.Option(gleam.Int)"
+  publicity: public
+  parameters:
+  - type: "gleam/option.Option(gleam.Int)"
+    name: maybe
+  body:
+  - kind: case
+    type: "gleam/option.Option(gleam.Int)"
+    subjects:
+    - kind: local_variable
+      type: "gleam/option.Option(gleam.Int)"
+      name: maybe
+    clauses:
+    - patterns:
+      -
+        - kind: constructor_pattern
+          type: "gleam/option.Option(gleam.Int)"
+          module: "gleam/option"
+          constructor: Some
+          arguments:
+          - pattern:
+              kind: variable_pattern
+              type: "gleam.Int"
+              name: n
+          with_module: false
+          with_spread: false
+      body:
+        kind: call
+        type: "gleam/option.Option(gleam.Int)"
+        function:
+          kind: function
+          type: "fn(gleam.Int) -> gleam/option.Option(gleam.Int)"
+          module: "gleam/option"
+          name: Some
+        arguments:
+        - kind: binary_operator
+          type: "gleam.Int"
+          name: "*"
+          left:
+            kind: int_literal
+            type: "gleam.Int"
+            value: "2"
+          right:
+            kind: local_variable
+            type: "gleam.Int"
+            name: n
+    - patterns:
+      -
+        - kind: constructor_pattern
+          type: "gleam/option.Option(gleam.Int)"
+          module: "gleam/option"
+          constructor: None
+          with_module: false
+          with_spread: false
+      body:
+        kind: function
+        type: "gleam/option.Option(gleam.Int)"
+        module: "gleam/option"
+        name: None
+

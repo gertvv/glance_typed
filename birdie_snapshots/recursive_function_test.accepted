@@ -1,0 +1,58 @@
+---
+version: 1.5.4
+title: recursive function test
+file: ./test/glance_typed_test.gleam
+test_name: recursive_function_test
+---
+---
+name: test
+functions:
+- name: countdown
+  type: "() fn(gleam.Int) -> gleam.Int"
+  publicity: public
+  parameters:
+  - type: "gleam.Int"
+    name: n
+  body:
+  - kind: case
+    type: "gleam.Int"
+    subjects:
+    - kind: local_variable
+      type: "gleam.Int"
+      name: n
+    clauses:
+    - patterns:
+      -
+        - kind: int_pattern
+          type: "gleam.Int"
+          value: "0"
+      body:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "0"
+    - patterns:
+      -
+        - kind: discard_pattern
+          type: "gleam.Int"
+          name: 
+      body:
+        kind: call
+        type: "gleam.Int"
+        function:
+          kind: function
+          type: "fn(gleam.Int) -> gleam.Int"
+          module: test
+          name: countdown
+        arguments:
+        - kind: binary_operator
+          type: "gleam.Int"
+          name: -
+          left:
+            kind: local_variable
+            type: "gleam.Int"
+            name: n
+          right:
+            kind: int_literal
+            type: "gleam.Int"
+            value: "1"
+
