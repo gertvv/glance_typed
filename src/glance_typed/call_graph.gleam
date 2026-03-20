@@ -1,4 +1,4 @@
-import gig/graph
+import glance_typed/graph
 
 import glance as g
 
@@ -118,8 +118,8 @@ fn pattern_bindings(pattern: g.Pattern) -> List(String) {
 
 fn field_item(field: g.Field(a), constructer: fn(g.Span, String) -> a) {
   case field {
-    g.LabelledField(_, item) -> item
-    g.ShorthandField(name) -> constructer(g.Span(0, 0), name)
+    g.LabelledField(item: item, ..) -> item
+    g.ShorthandField(label: name, location: loc) -> constructer(loc, name)
     g.UnlabelledField(item) -> item
   }
 }
@@ -214,7 +214,7 @@ fn walk_expression(g: Graph, n: Env, r: String, e: g.Expression) -> Graph {
     }
     g.BitString(_, segs) ->
       list.fold(segs, g, fn(g, seg) { walk_expression(g, n, r, seg.0) })
-    g.Echo(_, expression) ->
+    g.Echo(expression: expression, ..) ->
       case expression {
         Some(e) -> walk_expression(g, n, r, e)
         None -> g

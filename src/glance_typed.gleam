@@ -1,8 +1,7 @@
-import gig/call_graph
-import gig/graph
 import glance.{Span} as g
+import glance_typed/call_graph
+import glance_typed/graph
 import gleam/order
-import listx
 
 import gleam/dict.{type Dict}
 import gleam/int
@@ -1599,9 +1598,12 @@ fn infer_pattern(
           let #(c, n, arguments) = acc
 
           let #(item, label) = case arg {
-            g.LabelledField(label, item) -> #(item, Some(label))
-            g.ShorthandField(label) -> #(
-              g.PatternVariable(span, label),
+            g.LabelledField(label: label, item: item, ..) -> #(
+              item,
+              Some(label),
+            )
+            g.ShorthandField(label: label, location: loc) -> #(
+              g.PatternVariable(loc, label),
               Some(label),
             )
             g.UnlabelledField(item) -> #(item, None)
@@ -1796,7 +1798,7 @@ fn infer_body(
           let field = case ifun {
             Function(labels:, ..) ->
               case list.last(labels) {
-                Ok(Some(label)) -> g.LabelledField(label, callback)
+                Ok(Some(label)) -> g.LabelledField(label, span, callback)
                 _ -> g.UnlabelledField(callback)
               }
             _ -> g.UnlabelledField(callback)
@@ -1833,8 +1835,8 @@ fn do_match_labels(
         _ -> Error(WrongArity(location(c), lens.0, lens.1))
       }
     [p, ..p_rest] ->
-      listx.pop(args, fn(a) { a.label == p })
-      |> result.try_recover(fn(_) { listx.pop(args, fn(a) { a.label == None }) })
+      list_pop(args, fn(a) { a.label == p })
+      |> result.try_recover(fn(_) { list_pop(args, fn(a) { a.label == None }) })
       |> result.map_error(fn(_) {
         case p {
           Some(l) -> LabelNotFound(location(c), l)
@@ -1857,7 +1859,7 @@ fn match_labels_optional(
   case params {
     [] -> []
     [p, ..p_rest] ->
-      case listx.pop(args, fn(a) { a.label == p }) {
+      case list_pop(args, fn(a) { a.label == p }) {
         Ok(#(a, a_rest)) -> [Some(a), ..match_labels_optional(a_rest, p_rest)]
         Error(_) -> [None, ..match_labels_optional(args, p_rest)]
       }
@@ -2160,8 +2162,14 @@ fn infer_expression(
       let args =
         list.map(arguments, fn(arg) {
           let #(label, arg) = case arg {
-            g.LabelledField(label, item) -> #(Some(label), item)
-            g.ShorthandField(label) -> #(Some(label), g.Variable(span, label))
+            g.LabelledField(label: label, item: item, ..) -> #(
+              Some(label),
+              item,
+            )
+            g.ShorthandField(label: label, location: loc) -> #(
+              Some(label),
+              g.Variable(loc, label),
+            )
             g.UnlabelledField(item) -> #(None, item)
           }
           Field(label, arg)
@@ -2229,7 +2237,7 @@ fn infer_expression(
       // TODO return non-desugared version
       let #(c, x) = new_temp_var(c)
       let arg = case label {
-        Some(label) -> g.LabelledField(label, g.Variable(span, x))
+        Some(label) -> g.LabelledField(label, span, g.Variable(span, x))
         None -> g.UnlabelledField(g.Variable(span, x))
       }
       let args = list.flatten([arguments_before, [arg], arguments_after])
@@ -2386,12 +2394,12 @@ fn infer_expression(
         }
         g.FnCapture(span, label, fun, before, after) -> {
           let args = case label {
-            Some(label) -> [before, [g.LabelledField(label, left)], after]
+            Some(label) -> [before, [g.LabelledField(label, span, left)], after]
             None -> [before, [g.UnlabelledField(left)], after]
           }
           infer_expression(c, n, g.Call(span, fun, list.flatten(args)))
         }
-        g.Echo(span, None) -> {
+        g.Echo(location: span, expression: None, ..) -> {
           let echo_ = g.Variable(span, "echo_")
           let pipe = g.BinaryOperator(span, g.Pipe, left, echo_)
           infer_expression(c, n, pipe)
@@ -2458,7 +2466,7 @@ fn infer_expression(
 
       #(c, BinaryOperator(typ, name, left, right))
     }
-    g.Echo(_, expression) -> {
+    g.Echo(expression: expression, ..) -> {
       case expression {
         Some(expr) -> {
           use #(c, expr) <- result.try(infer_expression(c, n, expr))
@@ -3086,5 +3094,23 @@ fn map_bit_string_segment_option(
   case option {
     SizeValueOption(expr) -> SizeValueOption(func(expr))
     _ -> option
+  }
+}
+
+fn list_pop(
+  in list: List(a),
+  one_that is_desired: fn(a) -> Bool,
+) -> Result(#(a, List(a)), Nil) {
+  list_pop_loop(list, is_desired, [])
+}
+
+fn list_pop_loop(haystack, predicate, checked) {
+  case haystack {
+    [] -> Error(Nil)
+    [first, ..rest] ->
+      case predicate(first) {
+        True -> Ok(#(first, list.append(list.reverse(checked), rest)))
+        False -> list_pop_loop(rest, predicate, [first, ..checked])
+      }
   }
 }
