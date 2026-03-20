@@ -673,25 +673,11 @@ pub fn infer_module(
   // Fully resolve all type references
   let mod = c.module
   let type_aliases =
-    list.map(
-      mod.type_aliases,
-      map_definition(_, fn(type_alias) {
-        TypeAlias(..type_alias, typ: substitute_poly(c, type_alias.typ))
-      }),
-    )
+    list.map(mod.type_aliases, map_definition(_, substitute_type_alias(c, _)))
   let custom_types =
     list.map(mod.custom_types, map_definition(_, substitute_custom_type(c, _)))
   let constants =
-    list.map(
-      mod.constants,
-      map_definition(_, fn(constant) {
-        ConstantDefinition(
-          ..constant,
-          typ: substitute_poly(c, constant.typ),
-          value: substitute_expression(c, constant.value),
-        )
-      }),
-    )
+    list.map(mod.constants, map_definition(_, substitute_constant(c, _)))
   let functions =
     list.map(mod.functions, map_definition(_, substitute_function(c, _)))
   Module(..mod, type_aliases:, custom_types:, constants:, functions:)
@@ -1337,7 +1323,7 @@ fn resolve_aliased_global(
 }
 
 /// Resolve a name from the global environment
-pub fn resolve_global_name(
+fn resolve_global_name(
   c: Context,
   module_name: String,
   name: String,
@@ -1371,7 +1357,7 @@ fn resolve_aliased_type_name(
 }
 
 // Resolve a type name from a fully qualified module name
-pub fn resolve_global_type_name(
+fn resolve_global_type_name(
   c: Context,
   module_name: String,
   name: String,
@@ -2703,7 +2689,7 @@ fn occurs(c: Context, id: TypeVarId, in: Type) -> #(Context, Bool) {
 }
 
 /// follow any references to get the real type
-pub fn resolve_type(c: Context, typ: Type) -> Type {
+fn resolve_type(c: Context, typ: Type) -> Type {
   case typ {
     VariableType(x) -> {
       case get_type_var(c, x) {
@@ -2717,17 +2703,49 @@ pub fn resolve_type(c: Context, typ: Type) -> Type {
   }
 }
 
+fn build_rename(vars: List(TypeVarId)) -> Dict(TypeVarId, TypeVarId) {
+  list.index_map(vars, fn(var, i) { #(var, TypeVarId(i)) })
+  |> dict.from_list
+}
+
+fn substitute_type_alias(c: Context, type_alias: TypeAlias) -> TypeAlias {
+  let rename = build_rename(type_alias.typ.vars)
+  TypeAlias(
+    ..type_alias,
+    typ: substitute_poly(c, rename, type_alias.typ),
+    aliased: substitute_annotation(c, rename, type_alias.aliased),
+  )
+}
+
+fn substitute_constant(
+  c: Context,
+  constant: ConstantDefinition,
+) -> ConstantDefinition {
+  let rename = build_rename(constant.typ.vars)
+  ConstantDefinition(
+    ..constant,
+    typ: substitute_poly(c, rename, constant.typ),
+    annotation: option.map(constant.annotation, substitute_annotation(
+      c,
+      rename,
+      _,
+    )),
+    value: substitute_expression(c, rename, constant.value),
+  )
+}
+
 fn substitute_custom_type(c: Context, custom_type: CustomType) {
+  let rename = build_rename(custom_type.typ.vars)
   CustomType(
     ..custom_type,
-    typ: substitute_poly(c, custom_type.typ),
+    typ: substitute_poly(c, rename, custom_type.typ),
     variants: list.map(custom_type.variants, fn(variant) {
       Variant(
         ..variant,
-        typ: substitute_poly(c, variant.typ),
+        typ: substitute_poly(c, rename, variant.typ),
         fields: list.map(
           variant.fields,
-          map_field(_, substitute_annotation(c, _)),
+          map_field(_, substitute_annotation(c, rename, _)),
         ),
       )
     }),
@@ -2735,118 +2753,133 @@ fn substitute_custom_type(c: Context, custom_type: CustomType) {
 }
 
 fn substitute_function(c: Context, function: FunctionDefinition) {
+  let rename = build_rename(function.typ.vars)
   FunctionDefinition(
     ..function,
-    typ: substitute_poly(c, function.typ),
+    typ: substitute_poly(c, rename, function.typ),
     parameters: list.map(function.parameters, substitute_function_parameter(
       c,
+      rename,
       _,
     )),
-    body: list.map(function.body, substitute_statement(c, _)),
-    return: option.map(function.return, substitute_annotation(c, _)),
+    body: list.map(function.body, substitute_statement(c, rename, _)),
+    return: option.map(function.return, substitute_annotation(c, rename, _)),
   )
 }
 
 fn substitute_function_parameter(
   c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
   param: FunctionParameter,
 ) -> FunctionParameter {
   FunctionParameter(
     ..param,
-    typ: substitute_type(c, param.typ),
-    annotation: option.map(param.annotation, substitute_annotation(c, _)),
+    typ: substitute_type(c, rename, param.typ),
+    annotation: option.map(param.annotation, substitute_annotation(c, rename, _)),
   )
 }
 
-fn substitute_statement(c: Context, statement: Statement) -> Statement {
+fn substitute_statement(
+  c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
+  statement: Statement,
+) -> Statement {
   case statement {
     Use(typ:, patterns:, function:) ->
       Use(
-        typ: substitute_type(c, typ),
-        patterns: list.map(patterns, substitute_pattern(c, _)),
-        function: substitute_expression(c, function),
+        typ: substitute_type(c, rename, typ),
+        patterns: list.map(patterns, substitute_pattern(c, rename, _)),
+        function: substitute_expression(c, rename, function),
       )
     Assignment(typ:, kind:, pattern:, annotation:, value:) ->
       Assignment(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         kind:,
-        pattern: substitute_pattern(c, pattern),
-        annotation: option.map(annotation, substitute_annotation(c, _)),
-        value: substitute_expression(c, value),
+        pattern: substitute_pattern(c, rename, pattern),
+        annotation: option.map(annotation, substitute_annotation(c, rename, _)),
+        value: substitute_expression(c, rename, value),
       )
     Assert(typ:, expression:, message:) ->
       Assert(
-        typ: substitute_type(c, typ),
-        expression: substitute_expression(c, expression),
-        message: option.map(message, substitute_expression(c, _)),
+        typ: substitute_type(c, rename, typ),
+        expression: substitute_expression(c, rename, expression),
+        message: option.map(message, substitute_expression(c, rename, _)),
       )
     Expression(typ:, expression:) ->
       Expression(
-        typ: substitute_type(c, typ),
-        expression: substitute_expression(c, expression),
+        typ: substitute_type(c, rename, typ),
+        expression: substitute_expression(c, rename, expression),
       )
   }
 }
 
-fn substitute_expression(c: Context, expr: Expression) -> Expression {
+fn substitute_expression(
+  c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
+  expr: Expression,
+) -> Expression {
   // TODO: do we need to substitute type annotations?
   case expr {
     Int(..) -> expr
     Float(..) -> expr
     String(..) -> expr
     LocalVariable(typ:, name:) ->
-      LocalVariable(typ: substitute_type(c, typ), name:)
+      LocalVariable(typ: substitute_type(c, rename, typ), name:)
     Function(typ:, module:, name:, labels:) ->
-      Function(typ: substitute_type(c, typ), module:, name:, labels:)
+      Function(typ: substitute_type(c, rename, typ), module:, name:, labels:)
     Constant(typ:, module:, name:) ->
-      Constant(typ: substitute_type(c, typ), module:, name:)
+      Constant(typ: substitute_type(c, rename, typ), module:, name:)
     NegateInt(typ:, value:) ->
       NegateInt(
-        typ: substitute_type(c, typ),
-        value: substitute_expression(c, value),
+        typ: substitute_type(c, rename, typ),
+        value: substitute_expression(c, rename, value),
       )
     NegateBool(typ:, value:) ->
       NegateBool(
-        typ: substitute_type(c, typ),
-        value: substitute_expression(c, value),
+        typ: substitute_type(c, rename, typ),
+        value: substitute_expression(c, rename, value),
       )
     Block(typ:, statements:) ->
       Block(
-        typ: substitute_type(c, typ),
-        statements: list.map(statements, substitute_statement(c, _)),
+        typ: substitute_type(c, rename, typ),
+        statements: list.map(statements, substitute_statement(c, rename, _)),
       )
     Panic(typ:, value:) ->
       Panic(
-        typ: substitute_type(c, typ),
-        value: option.map(value, substitute_expression(c, _)),
+        typ: substitute_type(c, rename, typ),
+        value: option.map(value, substitute_expression(c, rename, _)),
       )
     Todo(typ:, value:) ->
       Todo(
-        typ: substitute_type(c, typ),
-        value: option.map(value, substitute_expression(c, _)),
+        typ: substitute_type(c, rename, typ),
+        value: option.map(value, substitute_expression(c, rename, _)),
       )
     Echo(typ:, value:) ->
       Echo(
-        typ: substitute_type(c, typ),
-        value: option.map(value, substitute_expression(c, _)),
+        typ: substitute_type(c, rename, typ),
+        value: option.map(value, substitute_expression(c, rename, _)),
       )
     Tuple(typ:, elements:) ->
       Tuple(
-        typ: substitute_type(c, typ),
-        elements: list.map(elements, substitute_expression(c, _)),
+        typ: substitute_type(c, rename, typ),
+        elements: list.map(elements, substitute_expression(c, rename, _)),
       )
     List(typ:, elements:, rest:) ->
       List(
-        typ: substitute_type(c, typ),
-        elements: list.map(elements, substitute_expression(c, _)),
-        rest: option.map(rest, substitute_expression(c, _)),
+        typ: substitute_type(c, rename, typ),
+        elements: list.map(elements, substitute_expression(c, rename, _)),
+        rest: option.map(rest, substitute_expression(c, rename, _)),
       )
     Fn(typ:, parameters:, return:, body:) ->
       Fn(
-        typ: substitute_type(c, typ),
-        parameters: list.map(parameters, substitute_function_parameter(c, _)),
-        return: option.map(return, substitute_annotation(c, _)),
-        body: list.map(body, substitute_statement(c, _)),
+        typ: substitute_type(c, rename, typ),
+        parameters: list.map(parameters, substitute_function_parameter(
+          c,
+          rename,
+          _,
+        )),
+        return: option.map(return, substitute_annotation(c, rename, _)),
+        body: list.map(body, substitute_statement(c, rename, _)),
       )
     RecordUpdate(
       typ:,
@@ -2858,24 +2891,24 @@ fn substitute_expression(c: Context, expr: Expression) -> Expression {
       ordered_fields:,
     ) ->
       RecordUpdate(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         module:,
         resolved_module:,
         constructor:,
-        record: substitute_expression(c, record),
+        record: substitute_expression(c, rename, record),
         fields: list.map(fields, fn(field) {
           let #(name, expr) = field
-          #(name, substitute_expression(c, expr))
+          #(name, substitute_expression(c, rename, expr))
         }),
         ordered_fields: list.map(ordered_fields, fn(field) {
-          result.map(field, map_field(_, substitute_expression(c, _)))
-          |> result.map_error(substitute_type(c, _))
+          result.map(field, map_field(_, substitute_expression(c, rename, _)))
+          |> result.map_error(substitute_type(c, rename, _))
         }),
       )
     FieldAccess(typ:, container:, module:, variant:, label:, index:) ->
       FieldAccess(
-        typ: substitute_type(c, typ),
-        container: substitute_expression(c, container),
+        typ: substitute_type(c, rename, typ),
+        container: substitute_expression(c, rename, container),
         module:,
         variant:,
         label:,
@@ -2883,116 +2916,129 @@ fn substitute_expression(c: Context, expr: Expression) -> Expression {
       )
     Call(typ:, function:, ordered_arguments:) ->
       Call(
-        typ: substitute_type(c, typ),
-        function: substitute_expression(c, function),
+        typ: substitute_type(c, rename, typ),
+        function: substitute_expression(c, rename, function),
         ordered_arguments: list.map(ordered_arguments, substitute_expression(
           c,
+          rename,
           _,
         )),
       )
     TupleIndex(typ:, tuple:, index:) ->
       TupleIndex(
-        typ: substitute_type(c, typ),
-        tuple: substitute_expression(c, tuple),
+        typ: substitute_type(c, rename, typ),
+        tuple: substitute_expression(c, rename, tuple),
         index:,
       )
     FnCapture(typ:, label:, function:, arguments_before:, arguments_after:) ->
       FnCapture(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         label:,
-        function: substitute_expression(c, function),
+        function: substitute_expression(c, rename, function),
         arguments_before: list.map(
           arguments_before,
-          map_field(_, substitute_expression(c, _)),
+          map_field(_, substitute_expression(c, rename, _)),
         ),
         arguments_after: list.map(
           arguments_after,
-          map_field(_, substitute_expression(c, _)),
+          map_field(_, substitute_expression(c, rename, _)),
         ),
       )
     BitString(typ:, segments:) ->
       BitString(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         segments: list.map(segments, fn(segment) {
           let #(expr, options) = segment
           #(
-            substitute_expression(c, expr),
+            substitute_expression(c, rename, expr),
             list.map(
               options,
-              map_bit_string_segment_option(_, substitute_expression(c, _)),
+              map_bit_string_segment_option(_, substitute_expression(
+                c,
+                rename,
+                _,
+              )),
             ),
           )
         }),
       )
     Case(typ:, subjects:, clauses:) ->
       Case(
-        typ: substitute_type(c, typ),
-        subjects: list.map(subjects, substitute_expression(c, _)),
-        clauses: list.map(clauses, substitute_clause(c, _)),
+        typ: substitute_type(c, rename, typ),
+        subjects: list.map(subjects, substitute_expression(c, rename, _)),
+        clauses: list.map(clauses, substitute_clause(c, rename, _)),
       )
     BinaryOperator(typ:, name:, left:, right:) ->
       BinaryOperator(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         name:,
-        left: substitute_expression(c, left),
-        right: substitute_expression(c, right),
+        left: substitute_expression(c, rename, left),
+        right: substitute_expression(c, rename, right),
       )
   }
 }
 
-fn substitute_clause(c: Context, clause: Clause) -> Clause {
+fn substitute_clause(
+  c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
+  clause: Clause,
+) -> Clause {
   Clause(
     patterns: list.map(clause.patterns, fn(alternative) {
-      list.map(alternative, substitute_pattern(c, _))
+      list.map(alternative, substitute_pattern(c, rename, _))
     }),
-    guard: option.map(clause.guard, substitute_expression(c, _)),
-    body: substitute_expression(c, clause.body),
+    guard: option.map(clause.guard, substitute_expression(c, rename, _)),
+    body: substitute_expression(c, rename, clause.body),
   )
 }
 
-fn substitute_pattern(c: Context, pattern: Pattern) -> Pattern {
+fn substitute_pattern(
+  c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
+  pattern: Pattern,
+) -> Pattern {
   case pattern {
     PatternInt(..) -> pattern
     PatternFloat(..) -> pattern
     PatternString(..) -> pattern
     PatternDiscard(typ:, name:) ->
-      PatternDiscard(typ: substitute_type(c, typ), name:)
+      PatternDiscard(typ: substitute_type(c, rename, typ), name:)
     PatternVariable(typ:, name:) ->
-      PatternVariable(typ: substitute_type(c, typ), name:)
+      PatternVariable(typ: substitute_type(c, rename, typ), name:)
     PatternTuple(typ:, elems:) ->
       PatternTuple(
-        typ: substitute_type(c, typ),
-        elems: list.map(elems, substitute_pattern(c, _)),
+        typ: substitute_type(c, rename, typ),
+        elems: list.map(elems, substitute_pattern(c, rename, _)),
       )
     PatternList(typ:, elements:, tail:) ->
       PatternList(
-        typ: substitute_type(c, typ),
-        elements: list.map(elements, substitute_pattern(c, _)),
-        tail: option.map(tail, substitute_pattern(c, _)),
+        typ: substitute_type(c, rename, typ),
+        elements: list.map(elements, substitute_pattern(c, rename, _)),
+        tail: option.map(tail, substitute_pattern(c, rename, _)),
       )
     PatternAssignment(typ:, pattern:, name:) ->
       PatternAssignment(
-        typ: substitute_type(c, typ),
-        pattern: substitute_pattern(c, pattern),
+        typ: substitute_type(c, rename, typ),
+        pattern: substitute_pattern(c, rename, pattern),
         name:,
       )
     PatternConcatenate(typ:, prefix:, prefix_name:, suffix_name:) ->
       PatternConcatenate(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         prefix:,
         prefix_name:,
         suffix_name:,
       )
     PatternBitString(typ:, segments:) ->
       PatternBitString(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         segments: list.map(segments, fn(segment) {
           let #(pattern, options) = segment
           #(
-            substitute_pattern(c, pattern),
+            substitute_pattern(c, rename, pattern),
             list.map(
               options,
-              map_bit_string_segment_option(_, substitute_pattern(c, _)),
+              map_bit_string_segment_option(_, substitute_pattern(c, rename, _)),
             ),
           )
         }),
@@ -3007,13 +3053,16 @@ fn substitute_pattern(c: Context, pattern: Pattern) -> Pattern {
       with_spread:,
     ) ->
       PatternConstructor(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         module:,
         constructor:,
-        arguments: list.map(arguments, map_field(_, substitute_pattern(c, _))),
+        arguments: list.map(
+          arguments,
+          map_field(_, substitute_pattern(c, rename, _)),
+        ),
         ordered_arguments: list.map(
           ordered_arguments,
-          map_field(_, substitute_pattern(c, _)),
+          map_field(_, substitute_pattern(c, rename, _)),
         ),
         with_module:,
         with_spread:,
@@ -3021,57 +3070,63 @@ fn substitute_pattern(c: Context, pattern: Pattern) -> Pattern {
   }
 }
 
-fn substitute_poly(c: Context, poly: Poly) {
-  Poly(poly.vars, substitute_type(c, poly.typ))
+fn substitute_poly(c: Context, rename: Dict(TypeVarId, TypeVarId), poly: Poly) {
+  let vars =
+    list.map(poly.vars, fn(v) { dict.get(rename, v) |> result.unwrap(v) })
+  Poly(vars, substitute_type(c, rename, poly.typ))
 }
 
-fn substitute_type(c: Context, typ: Type) {
+fn substitute_type(c: Context, rename: Dict(TypeVarId, TypeVarId), typ: Type) {
   case typ {
     NamedType(module:, name:, parameters:) -> {
-      let parameters = list.map(parameters, substitute_type(c, _))
+      let parameters = list.map(parameters, substitute_type(c, rename, _))
       NamedType(module:, name:, parameters:)
     }
     FunctionType(parameters, return) -> {
-      let parameters = list.map(parameters, substitute_type(c, _))
-      let return = substitute_type(c, return)
+      let parameters = list.map(parameters, substitute_type(c, rename, _))
+      let return = substitute_type(c, rename, return)
       FunctionType(parameters:, return:)
     }
     TupleType(elements) -> {
-      let elements = list.map(elements, substitute_type(c, _))
+      let elements = list.map(elements, substitute_type(c, rename, _))
       TupleType(elements:)
     }
     VariableType(ref) -> {
       case get_type_var(c, ref) {
-        Bound(x) -> substitute_type(c, x)
-        Unbound -> VariableType(ref)
+        Bound(x) -> substitute_type(c, rename, x)
+        Unbound -> VariableType(dict.get(rename, ref) |> result.unwrap(ref))
       }
     }
   }
 }
 
-fn substitute_annotation(c: Context, anno: Annotation) -> Annotation {
+fn substitute_annotation(
+  c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
+  anno: Annotation,
+) -> Annotation {
   case anno {
     NamedAnno(typ:, module:, name:, parameters:) ->
       NamedAnno(
-        typ: substitute_type(c, typ),
+        typ: substitute_type(c, rename, typ),
         module:,
         name:,
-        parameters: list.map(parameters, substitute_annotation(c, _)),
+        parameters: list.map(parameters, substitute_annotation(c, rename, _)),
       )
     TupleAnno(typ:, elements:) ->
       TupleAnno(
-        typ: substitute_type(c, typ),
-        elements: list.map(elements, substitute_annotation(c, _)),
+        typ: substitute_type(c, rename, typ),
+        elements: list.map(elements, substitute_annotation(c, rename, _)),
       )
     FunctionAnno(typ:, parameters:, return:) ->
       FunctionAnno(
-        typ: substitute_type(c, typ),
-        parameters: list.map(parameters, substitute_annotation(c, _)),
-        return: substitute_annotation(c, return),
+        typ: substitute_type(c, rename, typ),
+        parameters: list.map(parameters, substitute_annotation(c, rename, _)),
+        return: substitute_annotation(c, rename, return),
       )
     VariableAnno(typ:, name:) ->
-      VariableAnno(typ: substitute_type(c, typ), name:)
-    HoleAnno(typ:, name:) -> HoleAnno(substitute_type(c, typ), name:)
+      VariableAnno(typ: substitute_type(c, rename, typ), name:)
+    HoleAnno(typ:, name:) -> HoleAnno(substitute_type(c, rename, typ), name:)
   }
 }
 
