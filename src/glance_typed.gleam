@@ -10,6 +10,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
+// TODO rename to "prelude"?
 pub const builtin = "gleam"
 
 pub const nil_type = NamedType(builtin, "Nil", [])
@@ -104,16 +105,22 @@ pub type Location {
 }
 
 pub type Statement {
-  Use(typ: Type, patterns: List(Pattern), function: Expression)
+  Use(typ: Type, location: Span, patterns: List(Pattern), function: Expression)
   Assignment(
     typ: Type,
+    location: Span,
     kind: AssignmentKind,
     pattern: Pattern,
     annotation: Option(Annotation),
     value: Expression,
   )
-  Assert(typ: Type, expression: Expression, message: Option(Expression))
-  Expression(typ: Type, expression: Expression)
+  Assert(
+    typ: Type,
+    location: Span,
+    expression: Expression,
+    message: Option(Expression),
+  )
+  Expression(typ: Type, location: Span, expression: Expression)
 }
 
 pub type AssignmentKind {
@@ -122,26 +129,34 @@ pub type AssignmentKind {
 }
 
 pub type Pattern {
-  PatternInt(typ: Type, value: String)
-  PatternFloat(typ: Type, value: String)
-  PatternString(typ: Type, value: String)
-  PatternDiscard(typ: Type, name: String)
-  PatternVariable(typ: Type, name: String)
-  PatternTuple(typ: Type, elems: List(Pattern))
-  PatternList(typ: Type, elements: List(Pattern), tail: Option(Pattern))
-  PatternAssignment(typ: Type, pattern: Pattern, name: String)
+  PatternInt(typ: Type, location: Span, value: String)
+  PatternFloat(typ: Type, location: Span, value: String)
+  PatternString(typ: Type, location: Span, value: String)
+  PatternDiscard(typ: Type, location: Span, name: String)
+  PatternVariable(typ: Type, location: Span, name: String)
+  PatternTuple(typ: Type, location: Span, elems: List(Pattern))
+  PatternList(
+    typ: Type,
+    location: Span,
+    elements: List(Pattern),
+    tail: Option(Pattern),
+  )
+  PatternAssignment(typ: Type, location: Span, pattern: Pattern, name: String)
   PatternConcatenate(
     typ: Type,
+    location: Span,
     prefix: String,
     prefix_name: Option(AssignmentName),
     suffix_name: AssignmentName,
   )
   PatternBitString(
     typ: Type,
+    location: Span,
     segments: List(#(Pattern, List(BitStringSegmentOption(Pattern)))),
   )
   PatternConstructor(
     typ: Type,
+    location: Span,
     module: String,
     constructor: String,
     arguments: List(Field(Pattern)),
@@ -152,33 +167,41 @@ pub type Pattern {
 }
 
 pub type Expression {
-  Int(typ: Type, value: String)
-  Float(typ: Type, value: String)
-  String(typ: Type, value: String)
-  LocalVariable(typ: Type, name: String)
+  Int(typ: Type, location: Span, value: String)
+  Float(typ: Type, location: Span, value: String)
+  String(typ: Type, location: Span, value: String)
+  LocalVariable(typ: Type, location: Span, name: String)
   Function(
     typ: Type,
+    location: Span,
     module: String,
     name: String,
     labels: List(Option(String)),
   )
-  Constant(typ: Type, module: String, name: String)
-  NegateInt(typ: Type, value: Expression)
-  NegateBool(typ: Type, value: Expression)
-  Block(typ: Type, statements: List(Statement))
-  Panic(typ: Type, value: Option(Expression))
-  Todo(typ: Type, value: Option(Expression))
-  Echo(typ: Type, value: Option(Expression))
-  Tuple(typ: Type, elements: List(Expression))
-  List(typ: Type, elements: List(Expression), rest: Option(Expression))
+  Constant(typ: Type, location: Span, module: String, name: String)
+  NegateInt(typ: Type, location: Span, value: Expression)
+  NegateBool(typ: Type, location: Span, value: Expression)
+  Block(typ: Type, location: Span, statements: List(Statement))
+  Panic(typ: Type, location: Span, value: Option(Expression))
+  Todo(typ: Type, location: Span, value: Option(Expression))
+  Echo(typ: Type, location: Span, value: Option(Expression))
+  Tuple(typ: Type, location: Span, elements: List(Expression))
+  List(
+    typ: Type,
+    location: Span,
+    elements: List(Expression),
+    rest: Option(Expression),
+  )
   Fn(
     typ: Type,
+    location: Span,
     parameters: List(FunctionParameter),
     return: Option(Annotation),
     body: List(Statement),
   )
   RecordUpdate(
     typ: Type,
+    location: Span,
     module: Option(String),
     resolved_module: String,
     constructor: String,
@@ -188,6 +211,7 @@ pub type Expression {
   )
   FieldAccess(
     typ: Type,
+    location: Span,
     container: Expression,
     module: String,
     variant: String,
@@ -196,14 +220,16 @@ pub type Expression {
   )
   Call(
     typ: Type,
+    location: Span,
     function: Expression,
     // TODO provide args in original order
     // arguments: List(Field(Expression)),
     ordered_arguments: List(Expression),
   )
-  TupleIndex(typ: Type, tuple: Expression, index: Int)
+  TupleIndex(typ: Type, location: Span, tuple: Expression, index: Int)
   FnCapture(
     typ: Type,
+    location: Span,
     label: Option(String),
     function: Expression,
     arguments_before: List(Field(Expression)),
@@ -211,11 +237,18 @@ pub type Expression {
   )
   BitString(
     typ: Type,
+    location: Span,
     segments: List(#(Expression, List(BitStringSegmentOption(Expression)))),
   )
-  Case(typ: Type, subjects: List(Expression), clauses: List(Clause))
+  Case(
+    typ: Type,
+    location: Span,
+    subjects: List(Expression),
+    clauses: List(Clause),
+  )
   BinaryOperator(
     typ: Type,
+    location: Span,
     name: g.BinaryOperator,
     left: Expression,
     right: Expression,
@@ -267,6 +300,7 @@ pub type AssignmentName {
 
 pub type Import {
   Import(
+    location: Span,
     module: String,
     alias: Option(AssignmentName),
     unqualified_types: List(UnqualifiedImport),
@@ -277,6 +311,7 @@ pub type Import {
 pub type ConstantDefinition {
   ConstantDefinition(
     typ: Poly,
+    location: Span,
     name: String,
     publicity: Publicity,
     annotation: Option(Annotation),
@@ -301,6 +336,7 @@ pub type Publicity {
 pub type TypeAlias {
   TypeAlias(
     typ: Poly,
+    location: Span,
     name: String,
     publicity: Publicity,
     parameters: List(String),
@@ -311,6 +347,7 @@ pub type TypeAlias {
 pub type CustomType {
   CustomType(
     typ: Poly,
+    location: Span,
     name: String,
     publicity: Publicity,
     opaque_: Bool,
@@ -341,14 +378,20 @@ pub type Poly {
 pub type Annotation {
   NamedAnno(
     typ: Type,
+    location: Span,
     module: Option(String),
     name: String,
     parameters: List(Annotation),
   )
-  TupleAnno(typ: Type, elements: List(Annotation))
-  FunctionAnno(typ: Type, parameters: List(Annotation), return: Annotation)
-  VariableAnno(typ: Type, name: String)
-  HoleAnno(typ: Type, name: String)
+  TupleAnno(typ: Type, location: Span, elements: List(Annotation))
+  FunctionAnno(
+    typ: Type,
+    location: Span,
+    parameters: List(Annotation),
+    return: Annotation,
+  )
+  VariableAnno(typ: Type, location: Span, name: String)
+  HoleAnno(typ: Type, location: Span, name: String)
 }
 
 pub type Error {
@@ -623,7 +666,10 @@ pub fn infer_module(
       use group <- result.try(
         list.try_map(group, fn(fun_name) {
           list.find(module.functions, fn(f) { f.definition.name == fun_name })
-          |> result.replace_error(UnresolvedFunction(location(c), fun_name))
+          |> result.replace_error(UnresolvedFunction(
+            context_location(c),
+            fun_name,
+          ))
         }),
       )
 
@@ -849,7 +895,7 @@ fn map_attribute_argument(
   case expr {
     g.String(value:, ..) -> Ok(StringAttributeArgument(value))
     g.Variable(name:, ..) -> Ok(NameAttributeArgument(name))
-    _ -> Error(InvalidAttributeArgument(location(c)))
+    _ -> Error(InvalidAttributeArgument(context_location(c)))
   }
 }
 
@@ -875,7 +921,14 @@ fn infer_constant(
   let poly = generalise(c, value.typ)
 
   let constant =
-    ConstantDefinition(poly, con.name, publicity, annotation, value)
+    ConstantDefinition(
+      poly,
+      con.location,
+      con.name,
+      publicity,
+      annotation,
+      value,
+    )
 
   #(c, constant)
 }
@@ -972,7 +1025,8 @@ fn infer_alias_type(
 
   let poly = Poly(args, aliased.typ)
 
-  let alias = TypeAlias(poly, alias.name, publicity, parameters, aliased)
+  let alias =
+    TypeAlias(poly, alias.location, alias.name, publicity, parameters, aliased)
 
   #(c, alias)
 }
@@ -988,6 +1042,8 @@ fn infer_custom_type(
   let module = c.module.name
   let name = custom.name
   let typ = NamedType(module:, name:, parameters: param_types)
+
+  let location = custom.location
 
   // create an env for param types
   let n =
@@ -1013,7 +1069,15 @@ fn infer_custom_type(
   let typ = generalise(c, typ)
 
   let custom =
-    CustomType(typ:, opaque_:, name:, publicity:, parameters:, variants:)
+    CustomType(
+      typ:,
+      location:,
+      opaque_:,
+      name:,
+      publicity:,
+      parameters:,
+      variants:,
+    )
 
   #(c, custom)
 }
@@ -1145,9 +1209,9 @@ fn do_infer_annotation(
   typ: g.Type,
 ) -> Result(#(Context, Annotation), Error) {
   case typ {
-    g.NamedType(_, name, anno_module, params) -> {
+    g.NamedType(location:, name:, module:, parameters:) -> {
       use #(c, params) <- result.try(
-        list.try_fold(params, #(c, []), fn(acc, p) {
+        list.try_fold(parameters, #(c, []), fn(acc, p) {
           let #(c, l) = acc
           use #(c, p) <- result.map(do_infer_annotation(c, n, p))
           #(c, [p, ..l])
@@ -1156,17 +1220,13 @@ fn do_infer_annotation(
       let params = list.reverse(params)
 
       // instantiate the polymorphic type with the parameter types
-      use #(_, poly, _variants) <- result.try(resolve_type_name(
-        c,
-        anno_module,
-        name,
-      ))
+      use #(_, poly, _variants) <- result.try(resolve_type_name(c, module, name))
       let param_types = list.map(params, fn(param) { param.typ })
       use mapping <- result.map(
         list.strict_zip(poly.vars, param_types)
         |> result.map_error(fn(_) {
           WrongArity(
-            location(c),
+            context_location(c),
             list.length(poly.vars),
             list.length(param_types),
           )
@@ -1174,9 +1234,9 @@ fn do_infer_annotation(
         |> result.map(dict.from_list),
       )
       let typ = do_instantiate(c, mapping, poly.typ)
-      #(c, NamedAnno(typ, anno_module, name, params))
+      #(c, NamedAnno(typ, location, module, name, params))
     }
-    g.TupleType(_, elements) -> {
+    g.TupleType(location:, elements:) -> {
       use #(c, elements) <- result.map(
         list.try_fold(elements, #(c, []), fn(acc, p) {
           let #(c, l) = acc
@@ -1186,9 +1246,9 @@ fn do_infer_annotation(
       )
       let elements = list.reverse(elements)
       let typ = TupleType(list.map(elements, fn(x) { x.typ }))
-      #(c, TupleAnno(typ, elements))
+      #(c, TupleAnno(typ, location, elements))
     }
-    g.FunctionType(_, parameters, return) -> {
+    g.FunctionType(location:, parameters:, return:) -> {
       use #(c, params) <- result.try(
         list.try_fold(parameters, #(c, []), fn(acc, p) {
           let #(c, l) = acc
@@ -1199,18 +1259,21 @@ fn do_infer_annotation(
       let params = list.reverse(params)
       use #(c, ret) <- result.map(do_infer_annotation(c, n, return))
       let typ = FunctionType(list.map(params, fn(x) { x.typ }), ret.typ)
-      #(c, FunctionAnno(typ, params, ret))
+      #(c, FunctionAnno(typ, location, params, ret))
     }
-    g.VariableType(_, name) -> {
+    g.VariableType(location:, name:) -> {
       use typ <- result.map(
         dict.get(n, name)
-        |> result.replace_error(UnresolvedTypeVariable(location(c), name)),
+        |> result.replace_error(UnresolvedTypeVariable(
+          context_location(c),
+          name,
+        )),
       )
-      #(c, VariableAnno(typ, name))
+      #(c, VariableAnno(typ, location, name))
     }
-    g.HoleType(_, name) -> {
+    g.HoleType(location:, name:) -> {
       let #(c, typ) = new_type_var_ref(c)
-      Ok(#(c, HoleAnno(typ, name)))
+      Ok(#(c, HoleAnno(typ, location, name)))
     }
   }
 }
@@ -1329,7 +1392,7 @@ fn resolve_global_name(
   name: String,
 ) -> Result(ResolvedGlobal, Error) {
   dict.get(c.value_env, QName(module_name, name))
-  |> result.replace_error(UnresolvedGlobal(location(c), name))
+  |> result.replace_error(UnresolvedGlobal(context_location(c), name))
 }
 
 /// Resolve a type name from the global environment
@@ -1364,7 +1427,7 @@ fn resolve_global_type_name(
 ) -> Result(#(QName, Poly, List(Variant)), Error) {
   dict.get(c.type_env, QName(module_name, name))
   |> result.replace_error(UnresolvedType(
-    location(c),
+    context_location(c),
     module_name <> "." <> name,
   ))
   |> result.map(fn(t) { #(QName(module_name, name), t.0, t.1) })
@@ -1381,7 +1444,7 @@ fn resolve_constructor_name(c: Context, mod: Option(String), name: String) {
 /// Resolve a module alias to its fully qualified name
 fn resolve_module(c: Context, module_name: String) -> Result(String, Error) {
   dict.get(c.module_aliases, module_name)
-  |> result.replace_error(UnresolvedModule(location(c), module_name))
+  |> result.replace_error(UnresolvedModule(context_location(c), module_name))
 }
 
 fn new_temp_var(c: Context) -> #(Context, String) {
@@ -1402,20 +1465,23 @@ fn infer_pattern(
   pattern: g.Pattern,
 ) -> Result(#(Context, LocalEnv, Pattern), Error) {
   case pattern {
-    g.PatternInt(_, value) -> Ok(#(c, n, PatternInt(int_type, value)))
-    g.PatternFloat(_, value) -> Ok(#(c, n, PatternFloat(float_type, value)))
-    g.PatternString(_, value) -> Ok(#(c, n, PatternString(string_type, value)))
-    g.PatternDiscard(_, name) -> {
+    g.PatternInt(location:, value:) ->
+      Ok(#(c, n, PatternInt(int_type, location, value)))
+    g.PatternFloat(location:, value:) ->
+      Ok(#(c, n, PatternFloat(float_type, location, value)))
+    g.PatternString(location:, value:) ->
+      Ok(#(c, n, PatternString(string_type, location, value)))
+    g.PatternDiscard(location:, name:) -> {
       let #(c, typ) = new_type_var_ref(c)
-      Ok(#(c, n, PatternDiscard(typ, name)))
+      Ok(#(c, n, PatternDiscard(typ, location, name)))
     }
-    g.PatternVariable(_, name) -> {
+    g.PatternVariable(location:, name:) -> {
       let #(c, typ) = new_type_var_ref(c)
-      let pattern = PatternVariable(typ, name)
+      let pattern = PatternVariable(typ, location, name)
       let n = dict.insert(n, name, typ)
       Ok(#(c, n, pattern))
     }
-    g.PatternTuple(_, elements) -> {
+    g.PatternTuple(location:, elements:) -> {
       // Infer types for all elements in the tuple pattern
       use #(c, n, elems) <- result.map(
         list.try_fold(elements, #(c, n, []), fn(acc, elem) {
@@ -1429,9 +1495,9 @@ fn infer_pattern(
       // Create the tuple type from the inferred element types
       let typ = TupleType(list.map(elems, fn(e) { e.typ }))
 
-      #(c, n, PatternTuple(typ, elems))
+      #(c, n, PatternTuple(typ, location, elems))
     }
-    g.PatternList(_, elements, tail) -> {
+    g.PatternList(location:, elements:, tail:) -> {
       // Infer types for all elements in the list pattern
       use #(c, n, elements) <- result.try(
         list.try_fold(elements, #(c, n, []), fn(acc, elem) {
@@ -1464,21 +1530,21 @@ fn infer_pattern(
         None -> Ok(#(c, n, None))
       })
 
-      #(c, n, PatternList(typ, elements, tail))
+      #(c, n, PatternList(typ, location, elements, tail))
     }
-    g.PatternAssignment(_, pattern, name) -> {
+    g.PatternAssignment(location:, pattern:, name:) -> {
       // First, infer the type of the inner pattern
       use #(c, n, pattern) <- result.map(infer_pattern(c, n, pattern))
 
       // Create the PatternAssignment with the same type as the inner pattern
-      let pattern = PatternAssignment(pattern.typ, pattern, name)
+      let pattern = PatternAssignment(pattern.typ, location, pattern, name)
 
       // Add the name binding to the environment
       let n = dict.insert(n, name, pattern.typ)
 
       #(c, n, pattern)
     }
-    g.PatternConcatenate(_, prefix, prefix_name, rest_name) -> {
+    g.PatternConcatenate(location:, prefix:, prefix_name:, rest_name:) -> {
       // Add prefix_name to the environment if applicable
       let #(n, prefix_name) = case prefix_name {
         Some(g.Named(name)) -> {
@@ -1499,11 +1565,17 @@ fn infer_pattern(
       }
 
       let pattern =
-        PatternConcatenate(string_type, prefix, prefix_name, rest_name_result)
+        PatternConcatenate(
+          string_type,
+          location,
+          prefix,
+          prefix_name,
+          rest_name_result,
+        )
 
       Ok(#(c, n, pattern))
     }
-    g.PatternBitString(_, segments) -> {
+    g.PatternBitString(location:, segments:) -> {
       use #(c, n, segs) <- result.map(
         list.try_fold(segments, #(c, n, []), fn(acc, seg) {
           let #(c, n, segs) = acc
@@ -1541,7 +1613,7 @@ fn infer_pattern(
               })
               use typ <- result.map(case typ, option_type {
                 Some(_), Some(_) ->
-                  Error(BitPatternSegmentTypeOverSpecified(location(c)))
+                  Error(BitPatternSegmentTypeOverSpecified(context_location(c)))
                 Some(_), None -> Ok(typ)
                 _, _ -> Ok(option_type)
               })
@@ -1564,9 +1636,9 @@ fn infer_pattern(
       let segs = list.reverse(segs)
 
       // The overall pattern type should be bit_array_type
-      #(c, n, PatternBitString(bit_array_type, segs))
+      #(c, n, PatternBitString(bit_array_type, location, segs))
     }
-    g.PatternVariant(span, module, constructor, arguments, with_spread) -> {
+    g.PatternVariant(location:, module:, constructor:, arguments:, with_spread:) -> {
       // was a module name provided
       let with_module = case module {
         Some(_) -> True
@@ -1588,8 +1660,8 @@ fn infer_pattern(
               item,
               Some(label),
             )
-            g.ShorthandField(label: label, location: loc) -> #(
-              g.PatternVariable(loc, label),
+            g.ShorthandField(label: label, location:) -> #(
+              g.PatternVariable(location, label),
               Some(label),
             )
             g.UnlabelledField(item) -> #(item, None)
@@ -1612,7 +1684,7 @@ fn infer_pattern(
                 Some(opt) -> #(c, opt)
                 None -> {
                   let #(c, typ) = new_type_var_ref(c)
-                  #(c, Field(None, PatternDiscard(typ, "")))
+                  #(c, Field(None, PatternDiscard(typ, location, "")))
                 }
               }
               #(c, [opt, ..opts])
@@ -1641,6 +1713,7 @@ fn infer_pattern(
       let pattern =
         PatternConstructor(
           typ:,
+          location:,
           module:,
           constructor:,
           arguments:,
@@ -1661,7 +1734,7 @@ fn resolve_constructor(c: Context, module: Option(String), constructor: String) 
       Ok(#(module, name, typ, labels))
     ConstantGlobal(..) ->
       Error(NotAFunction(
-        location(c),
+        context_location(c),
         constructor.module <> "." <> constructor.name,
       ))
   }
@@ -1699,13 +1772,13 @@ fn infer_body(
         g.Expression(value) -> {
           use #(c, value) <- result.try(infer_expression(c, n, value))
 
-          let statement = Expression(value.typ, value)
+          let statement = Expression(value.typ, value.location, value)
 
           // infer the rest of the body
           use #(c, rest) <- result.map(infer_body(c, n, xs))
           #(c, [statement, ..rest])
         }
-        g.Assignment(_, kind, pattern, annotation, value) -> {
+        g.Assignment(location:, kind:, pattern:, annotation:, value:) -> {
           // infer value before binding the new variable
           use #(c, value) <- result.try(infer_expression(c, n, value))
 
@@ -1735,17 +1808,18 @@ fn infer_body(
           let statement =
             Assignment(
               typ: value.typ,
-              value: value,
-              pattern: pattern,
-              annotation: annotation,
-              kind: kind,
+              location:,
+              value:,
+              pattern:,
+              annotation:,
+              kind:,
             )
 
           // infer the rest of the body
           use #(c, rest) <- result.map(infer_body(c, n, xs))
           #(c, [statement, ..rest])
         }
-        g.Assert(_, expression, message) -> {
+        g.Assert(location:, expression:, message:) -> {
           use #(c, expression) <- result.try(infer_expression(c, n, expression))
 
           use #(c, message) <- result.try(case message {
@@ -1756,7 +1830,7 @@ fn infer_body(
             None -> Ok(#(c, None))
           })
 
-          let statement = Assert(expression.typ, expression, message)
+          let statement = Assert(expression.typ, location, expression, message)
 
           // infer the rest of the body
           use #(c, rest) <- result.map(infer_body(c, n, xs))
@@ -1791,7 +1865,7 @@ fn infer_body(
           }
           let call = g.Call(span, fun, list.append(args, [field]))
           use #(c, exp) <- result.map(infer_expression(c, n, call))
-          let statement = Expression(exp.typ, exp)
+          let statement = Expression(exp.typ, exp.location, exp)
           #(c, [statement])
         }
       }
@@ -1818,15 +1892,17 @@ fn do_match_labels(
     [] ->
       case args {
         [] -> Ok([])
-        _ -> Error(WrongArity(location(c), lens.0, lens.1))
+        _ -> Error(WrongArity(context_location(c), lens.0, lens.1))
       }
     [p, ..p_rest] ->
-      list_pop(args, fn(a) { a.label == p })
-      |> result.try_recover(fn(_) { list_pop(args, fn(a) { a.label == None }) })
+      extract_matching(args, fn(a) { a.label == p })
+      |> result.try_recover(fn(_) {
+        extract_matching(args, fn(a) { a.label == None })
+      })
       |> result.map_error(fn(_) {
         case p {
-          Some(l) -> LabelNotFound(location(c), l)
-          None -> WrongArity(location(c), lens.0, lens.1)
+          Some(l) -> LabelNotFound(context_location(c), l)
+          None -> WrongArity(context_location(c), lens.0, lens.1)
         }
       })
       |> result.try(fn(r) {
@@ -1845,7 +1921,7 @@ fn match_labels_optional(
   case params {
     [] -> []
     [p, ..p_rest] ->
-      case list_pop(args, fn(a) { a.label == p }) {
+      case extract_matching(args, fn(a) { a.label == p }) {
         Ok(#(a, a_rest)) -> [Some(a), ..match_labels_optional(a_rest, p_rest)]
         Error(_) -> [None, ..match_labels_optional(args, p_rest)]
       }
@@ -1859,77 +1935,78 @@ fn infer_expression(
 ) -> Result(#(Context, Expression), Error) {
   let c = Context(..c, current_span: exp.location)
   case exp {
-    g.Int(_, s) -> Ok(#(c, Int(int_type, s)))
-    g.Float(_, s) -> Ok(#(c, Float(float_type, s)))
-    g.String(_, s) -> Ok(#(c, String(string_type, s)))
-    g.Variable(_, s) -> {
-      let name = resolve_unqualified_name(c, n, s)
+    g.Int(location:, value:) -> Ok(#(c, Int(int_type, location, value)))
+    g.Float(location:, value:) -> Ok(#(c, Float(float_type, location, value)))
+    g.String(location:, value:) ->
+      Ok(#(c, String(string_type, location, value)))
+    g.Variable(location:, name:) -> {
+      let name = resolve_unqualified_name(c, n, name)
       case name {
         Ok(ResolvedGlobal(global)) ->
           case global {
             FunctionGlobal(module, name, typ, labels) -> {
               let #(c, typ) = instantiate(c, typ)
-              Ok(#(c, Function(typ, module, name, labels)))
+              Ok(#(c, Function(typ, location, module, name, labels)))
             }
             ConstantGlobal(module, name, typ) -> {
               let #(c, typ) = instantiate(c, typ)
-              Ok(#(c, Constant(typ, module, name)))
+              Ok(#(c, Constant(typ, location, module, name)))
             }
           }
         Ok(ResolvedLocal(name, typ)) -> {
-          Ok(#(c, LocalVariable(typ, name)))
+          Ok(#(c, LocalVariable(typ, location, name)))
         }
         Error(s) -> Error(s)
       }
     }
-    g.NegateInt(_, value) -> {
+    g.NegateInt(location:, value:) -> {
       use #(c, e) <- result.try(infer_expression(c, n, value))
       use c <- result.map(unify(c, e.typ, int_type))
-      #(c, NegateInt(int_type, e))
+      #(c, NegateInt(int_type, location, e))
     }
-    g.NegateBool(_, value) -> {
+    g.NegateBool(location:, value:) -> {
       use #(c, e) <- result.try(infer_expression(c, n, value))
       use c <- result.map(unify(c, e.typ, bool_type))
-      #(c, NegateBool(bool_type, e))
+      #(c, NegateBool(bool_type, location, e))
     }
-    g.Block(_, statements) -> {
+    g.Block(location:, statements:) -> {
       use #(c, statements) <- result.try(infer_body(c, n, statements))
       case list.last(statements) {
-        Ok(last) -> Ok(#(c, Block(last.typ, statements)))
-        Error(_) -> Error(EmptyBlock(location(c)))
+        Ok(last) -> Ok(#(c, Block(last.typ, location, statements)))
+        Error(_) -> Error(EmptyBlock(context_location(c)))
       }
     }
-    g.Panic(_, e) -> {
+    g.Panic(location:, message: e) -> {
       case e {
         Some(e) -> {
           // the expression should be a string
           use #(c, e) <- result.try(infer_expression(c, n, e))
           use c <- result.map(unify(c, e.typ, string_type))
           let #(c, typ) = new_type_var_ref(c)
-          #(c, Panic(typ, Some(e)))
+          #(c, Panic(typ, location, Some(e)))
         }
         None -> {
           let #(c, typ) = new_type_var_ref(c)
-          Ok(#(c, Panic(typ, None)))
+          Ok(#(c, Panic(typ, location, None)))
         }
       }
     }
-    g.Todo(_, e) -> {
-      case e {
+    g.Todo(location:, message:) -> {
+      case message {
         Some(e) -> {
           // the expression should be a string
           use #(c, e) <- result.try(infer_expression(c, n, e))
           use c <- result.map(unify(c, e.typ, string_type))
           let #(c, typ) = new_type_var_ref(c)
-          #(c, Todo(typ, Some(e)))
+          #(c, Todo(typ, location, Some(e)))
         }
         None -> {
           let #(c, typ) = new_type_var_ref(c)
-          Ok(#(c, Todo(typ, None)))
+          Ok(#(c, Todo(typ, location, None)))
         }
       }
     }
-    g.Tuple(_, elements) -> {
+    g.Tuple(location:, elements:) -> {
       // Infer type of all elements
       use #(c, elements) <- result.try(
         list.try_fold(elements, #(c, []), fn(acc, e) {
@@ -1943,9 +2020,9 @@ fn infer_expression(
       // Create tuple type
       let types = list.map(elements, fn(e) { e.typ })
       let typ = TupleType(types)
-      Ok(#(c, Tuple(typ, elements)))
+      Ok(#(c, Tuple(typ, location, elements)))
     }
-    g.List(_, elements, rest) -> {
+    g.List(location:, elements:, rest:) -> {
       // Infer types for all elements
       use #(c, elements) <- result.try(
         list.try_fold(elements, #(c, []), fn(acc, e) {
@@ -1980,12 +2057,12 @@ fn infer_expression(
         None -> Ok(c)
       })
 
-      #(c, List(typ, elements, rest))
+      #(c, List(typ, location, elements, rest))
     }
-    g.Fn(_, parameters, return_annotation, body) -> {
-      infer_fn(c, n, parameters, return_annotation, body, None)
+    g.Fn(location:, arguments:, return_annotation:, body:) -> {
+      infer_fn(c, n, location, arguments, return_annotation, body, None)
     }
-    g.RecordUpdate(span, module, constructor, record, fields) -> {
+    g.RecordUpdate(location:, module:, constructor:, record:, fields:) -> {
       // Infer the type of the base record expression
       use #(c, base_expr) <- result.try(infer_expression(c, n, record))
 
@@ -1999,7 +2076,7 @@ fn infer_expression(
       use #(constructor_args, constructor_ret) <- result.try(
         case constructor_type {
           FunctionType(parameters:, return:) -> Ok(#(parameters, return))
-          _ -> Error(NotAFunction(location(c), constructor))
+          _ -> Error(NotAFunction(context_location(c), constructor))
         },
       )
 
@@ -2012,7 +2089,7 @@ fn infer_expression(
           let #(c, updated_fields) = acc
           let item = case field.item {
             Some(item) -> item
-            None -> g.Variable(span, field.label)
+            None -> g.Variable(location, field.label)
           }
           use #(c, value) <- result.map(infer_expression(c, n, item))
           #(c, [#(field.label, value), ..updated_fields])
@@ -2026,7 +2103,7 @@ fn infer_expression(
         list.strict_zip(ordered_fields, constructor_args)
         |> result.map_error(fn(_) {
           WrongArity(
-            location(c),
+            context_location(c),
             list.length(constructor_args),
             list.length(ordered_fields),
           )
@@ -2056,6 +2133,7 @@ fn infer_expression(
       let record_update =
         RecordUpdate(
           typ: typ,
+          location: location,
           module: module,
           resolved_module: res_module,
           constructor: constructor,
@@ -2066,7 +2144,7 @@ fn infer_expression(
 
       #(c, record_update)
     }
-    g.FieldAccess(_, container, label) -> {
+    g.FieldAccess(location:, container:, label:) -> {
       let field_access = {
         // try to infer the value, otherwise it might be a module access
         use #(c, value) <- result.try(infer_expression(c, n, container))
@@ -2074,7 +2152,7 @@ fn infer_expression(
         // field access must be on a named type
         let value_typ = case resolve_type(c, value.typ) {
           NamedType(module, type_name, _) -> Ok(#(type_name, module))
-          _ -> Error(InvalidFieldAccess(location(c)))
+          _ -> Error(InvalidFieldAccess(context_location(c)))
         }
         use #(type_name, module) <- result.try(value_typ)
 
@@ -2089,7 +2167,7 @@ fn infer_expression(
         let variant = case variants {
           // TODO proper implementation checking all variants
           [variant, ..] -> Ok(variant)
-          _ -> Error(InvalidFieldAccess(location(c)))
+          _ -> Error(InvalidFieldAccess(context_location(c)))
         }
         use variant <- result.try(variant)
 
@@ -2098,7 +2176,7 @@ fn infer_expression(
           variant.fields
           |> list.index_map(fn(x, i) { #(x, i) })
           |> list.find(fn(x) { { x.0 }.label == Some(label) })
-          |> result.replace_error(FieldNotFound(location(c), label))
+          |> result.replace_error(FieldNotFound(context_location(c), label))
         use #(field, index) <- result.try(field)
 
         // create a getter function type
@@ -2110,7 +2188,10 @@ fn infer_expression(
         let #(c, typ) = new_type_var_ref(c)
         use c <- result.map(unify(c, getter, FunctionType([value.typ], typ)))
 
-        #(c, FieldAccess(typ, value, module, variant.name, label, index))
+        #(
+          c,
+          FieldAccess(typ, location, value, module, variant.name, label, index),
+        )
       }
       case field_access {
         Ok(access) -> Ok(access)
@@ -2121,11 +2202,11 @@ fn infer_expression(
               case resolve_aliased_global(c, QName(module, label)) {
                 Ok(FunctionGlobal(module, name, poly, labels)) -> {
                   let #(c, typ) = instantiate(c, poly)
-                  Ok(#(c, Function(typ, module, name, labels)))
+                  Ok(#(c, Function(typ, location, module, name, labels)))
                 }
                 Ok(ConstantGlobal(module, name, poly)) -> {
                   let #(c, typ) = instantiate(c, poly)
-                  Ok(#(c, Constant(typ, module, name)))
+                  Ok(#(c, Constant(typ, location, module, name)))
                 }
                 Error(e) -> Error(e)
               }
@@ -2152,9 +2233,9 @@ fn infer_expression(
               Some(label),
               item,
             )
-            g.ShorthandField(label: label, location: loc) -> #(
+            g.ShorthandField(label: label, location:) -> #(
               Some(label),
-              g.Variable(loc, label),
+              g.Variable(location, label),
             )
             g.UnlabelledField(item) -> #(None, item)
           }
@@ -2170,7 +2251,11 @@ fn infer_expression(
           use args <- result.map(
             list.strict_zip(params, args)
             |> result.map_error(fn(_) {
-              WrongArity(location(c), list.length(params), list.length(args))
+              WrongArity(
+                context_location(c),
+                list.length(params),
+                list.length(args),
+              )
             }),
           )
           args
@@ -2185,8 +2270,16 @@ fn infer_expression(
 
           // give type hint when arg is a fn
           let result = case field_arg.item {
-            g.Fn(_, parameters, return_annotation, body) ->
-              infer_fn(c, n, parameters, return_annotation, body, type_hint)
+            g.Fn(location:, arguments:, return_annotation:, body:) ->
+              infer_fn(
+                c,
+                n,
+                location,
+                arguments,
+                return_annotation,
+                body,
+                type_hint,
+              )
             _ -> infer_expression(c, n, field_arg.item)
           }
           use #(c, inferred_arg) <- result.try(result)
@@ -2207,32 +2300,42 @@ fn infer_expression(
       // unify the function type with the types of args
       let #(c, typ) = new_type_var_ref(c)
       use c <- result.map(unify(c, fun.typ, FunctionType(arg_types, typ)))
-      #(c, Call(typ, fun, ordered_arguments))
+      #(c, Call(typ, span, fun, ordered_arguments))
     }
-    g.TupleIndex(_, tuple, index) -> {
+    g.TupleIndex(location:, tuple:, index:) -> {
       use #(c, tuple) <- result.try(infer_expression(c, n, tuple))
       case resolve_type(c, tuple.typ) {
         TupleType(elements) -> {
           tuple_index_type(c, elements, index)
-          |> result.map(fn(typ) { #(c, TupleIndex(typ, tuple, index)) })
+          |> result.map(fn(typ) {
+            #(c, TupleIndex(typ, location, tuple, index))
+          })
         }
-        _ -> Error(InvalidTupleAccess(location(c)))
+        _ -> Error(InvalidTupleAccess(context_location(c)))
       }
     }
-    g.FnCapture(span, label, function, arguments_before, arguments_after) -> {
+    g.FnCapture(
+      location:,
+      label:,
+      function:,
+      arguments_before:,
+      arguments_after:,
+    ) -> {
       // TODO return non-desugared version
       let #(c, x) = new_temp_var(c)
       let arg = case label {
-        Some(label) -> g.LabelledField(label, span, g.Variable(span, x))
-        None -> g.UnlabelledField(g.Variable(span, x))
+        Some(label) -> g.LabelledField(label, location, g.Variable(location, x))
+        None -> g.UnlabelledField(g.Variable(location, x))
       }
       let args = list.flatten([arguments_before, [arg], arguments_after])
       let param = g.FnParameter(g.Named(x), None)
       let lambda =
-        g.Fn(span, [param], None, [g.Expression(g.Call(span, function, args))])
+        g.Fn(location, [param], None, [
+          g.Expression(g.Call(location, function, args)),
+        ])
       infer_expression(c, n, lambda)
     }
-    g.BitString(_, segments) -> {
+    g.BitString(location:, segments:) -> {
       use #(c, segs) <- result.try(
         list.try_fold(segments, #(c, []), fn(acc, seg) {
           let #(c, segs) = acc
@@ -2270,7 +2373,7 @@ fn infer_expression(
               })
               use typ <- result.map(case typ, option_type {
                 Some(_), Some(_) ->
-                  Error(BitPatternSegmentTypeOverSpecified(location(c)))
+                  Error(BitPatternSegmentTypeOverSpecified(context_location(c)))
                 Some(_), None -> Ok(typ)
                 _, _ -> Ok(option_type)
               })
@@ -2288,9 +2391,9 @@ fn infer_expression(
         }),
       )
       let segs = list.reverse(segs)
-      Ok(#(c, BitString(bit_array_type, segs)))
+      Ok(#(c, BitString(bit_array_type, location, segs)))
     }
-    g.Case(_, subjects, clauses) -> {
+    g.Case(location:, subjects:, clauses:) -> {
       use #(c, subjects) <- result.try(
         list.try_fold(subjects, #(c, []), fn(acc, sub) {
           let #(c, subjects) = acc
@@ -2319,7 +2422,7 @@ fn infer_expression(
                 list.strict_zip(subjects, pat)
                 |> result.map_error(fn(_) {
                   WrongArity(
-                    location(c),
+                    context_location(c),
                     list.length(subjects),
                     list.length(pat),
                   )
@@ -2369,7 +2472,7 @@ fn infer_expression(
       )
       let clauses = list.reverse(clauses)
 
-      Ok(#(c, Case(typ:, subjects:, clauses:)))
+      Ok(#(c, Case(typ:, location:, subjects:, clauses:)))
     }
     g.BinaryOperator(span, g.Pipe, left, right) -> {
       // TODO return a not-desugared version
@@ -2396,7 +2499,7 @@ fn infer_expression(
         }
       }
     }
-    g.BinaryOperator(_, name, left, right) -> {
+    g.BinaryOperator(location:, name:, left:, right:) -> {
       let #(c, fun_typ) = case name {
         // Boolean logic
         g.And | g.Or -> #(c, FunctionType([bool_type, bool_type], bool_type))
@@ -2450,16 +2553,16 @@ fn infer_expression(
         FunctionType([left.typ, right.typ], typ),
       ))
 
-      #(c, BinaryOperator(typ, name, left, right))
+      #(c, BinaryOperator(typ, location, name, left, right))
     }
-    g.Echo(expression: expression, ..) -> {
+    g.Echo(location:, expression:, ..) -> {
       case expression {
         Some(expr) -> {
           use #(c, expr) <- result.try(infer_expression(c, n, expr))
-          Ok(#(c, Echo(expr.typ, Some(expr))))
+          Ok(#(c, Echo(expr.typ, location, Some(expr))))
         }
         None -> {
-          Ok(#(c, Echo(nil_type, None)))
+          Ok(#(c, Echo(nil_type, location, None)))
         }
       }
     }
@@ -2468,7 +2571,7 @@ fn infer_expression(
 
 fn resolve_custom_type(c: Context, module: String, type_name: String) {
   dict.get(c.type_env, QName(module, type_name))
-  |> result.replace_error(UnresolvedType(location(c), type_name))
+  |> result.replace_error(UnresolvedType(context_location(c), type_name))
 }
 
 fn tuple_index_type(
@@ -2478,7 +2581,7 @@ fn tuple_index_type(
 ) -> Result(Type, Error) {
   index_into_list(elements, index)
   |> result.map_error(fn(_) {
-    TupleIndexOutOfBounds(location(c), list.length(elements), index)
+    TupleIndexOutOfBounds(context_location(c), list.length(elements), index)
   })
 }
 
@@ -2493,6 +2596,7 @@ fn index_into_list(list: List(a), index: Int) -> Result(a, Nil) {
 fn infer_fn(
   c: Context,
   n: Dict(String, Type),
+  location: Span,
   parameters: List(g.FnParameter),
   return: Option(g.Type),
   body: List(g.Statement),
@@ -2541,7 +2645,7 @@ fn infer_fn(
     Error(_) -> Ok(c)
   })
 
-  let fun = Fn(typ:, parameters:, return:, body:)
+  let fun = Fn(typ:, location:, parameters:, return:, body:)
   #(c, fun)
 }
 
@@ -2620,7 +2724,7 @@ fn unify(c: Context, a: Type, b: Type) -> Result(Context, Error) {
         False -> {
           let #(c, occurs) = occurs(c, ref, b)
           case occurs {
-            True -> Error(RecursiveTypeError(location(c)))
+            True -> Error(RecursiveTypeError(context_location(c)))
             False -> Ok(set_type_var(c, ref, Bound(b)))
           }
         }
@@ -2628,7 +2732,7 @@ fn unify(c: Context, a: Type, b: Type) -> Result(Context, Error) {
     a, VariableType(_) -> unify(c, b, a)
     NamedType(amodule, aname, _), NamedType(bmodule, bname, _)
       if aname != bname || amodule != bmodule
-    -> Error(IncompatibleTypes(location(c), a, b))
+    -> Error(IncompatibleTypes(context_location(c), a, b))
     NamedType(_, _, aargs), NamedType(_, _, bargs) ->
       unify_arguments(c, aargs, bargs)
     FunctionType(aargs, aret), FunctionType(bargs, bret) -> {
@@ -2638,7 +2742,7 @@ fn unify(c: Context, a: Type, b: Type) -> Result(Context, Error) {
     TupleType(aelements), TupleType(belements) -> {
       unify_arguments(c, aelements, belements)
     }
-    _, _ -> Error(IncompatibleTypes(location(c), a, b))
+    _, _ -> Error(IncompatibleTypes(context_location(c), a, b))
   }
 }
 
@@ -2650,7 +2754,7 @@ fn unify_arguments(
   use args <- result.try(
     list.strict_zip(aargs, bargs)
     |> result.map_error(fn(_) {
-      WrongArity(location(c), list.length(aargs), list.length(bargs))
+      WrongArity(context_location(c), list.length(aargs), list.length(bargs))
     }),
   )
   list.try_fold(args, c, fn(c, x) { unify(c, x.0, x.1) })
@@ -2785,29 +2889,33 @@ fn substitute_statement(
   statement: Statement,
 ) -> Statement {
   case statement {
-    Use(typ:, patterns:, function:) ->
+    Use(typ:, location:, patterns:, function:) ->
       Use(
         typ: substitute_type(c, rename, typ),
+        location:,
         patterns: list.map(patterns, substitute_pattern(c, rename, _)),
         function: substitute_expression(c, rename, function),
       )
-    Assignment(typ:, kind:, pattern:, annotation:, value:) ->
+    Assignment(typ:, location:, kind:, pattern:, annotation:, value:) ->
       Assignment(
         typ: substitute_type(c, rename, typ),
+        location:,
         kind:,
         pattern: substitute_pattern(c, rename, pattern),
         annotation: option.map(annotation, substitute_annotation(c, rename, _)),
         value: substitute_expression(c, rename, value),
       )
-    Assert(typ:, expression:, message:) ->
+    Assert(typ:, location:, expression:, message:) ->
       Assert(
         typ: substitute_type(c, rename, typ),
+        location:,
         expression: substitute_expression(c, rename, expression),
         message: option.map(message, substitute_expression(c, rename, _)),
       )
-    Expression(typ:, expression:) ->
+    Expression(typ:, location:, expression:) ->
       Expression(
         typ: substitute_type(c, rename, typ),
+        location:,
         expression: substitute_expression(c, rename, expression),
       )
   }
@@ -2818,61 +2926,75 @@ fn substitute_expression(
   rename: Dict(TypeVarId, TypeVarId),
   expr: Expression,
 ) -> Expression {
-  // TODO: do we need to substitute type annotations?
   case expr {
     Int(..) -> expr
     Float(..) -> expr
     String(..) -> expr
-    LocalVariable(typ:, name:) ->
-      LocalVariable(typ: substitute_type(c, rename, typ), name:)
-    Function(typ:, module:, name:, labels:) ->
-      Function(typ: substitute_type(c, rename, typ), module:, name:, labels:)
-    Constant(typ:, module:, name:) ->
-      Constant(typ: substitute_type(c, rename, typ), module:, name:)
-    NegateInt(typ:, value:) ->
+    LocalVariable(typ:, location:, name:) ->
+      LocalVariable(typ: substitute_type(c, rename, typ), location:, name:)
+    Function(typ:, location:, module:, name:, labels:) ->
+      Function(
+        typ: substitute_type(c, rename, typ),
+        location:,
+        module:,
+        name:,
+        labels:,
+      )
+    Constant(typ:, location:, module:, name:) ->
+      Constant(typ: substitute_type(c, rename, typ), location:, module:, name:)
+    NegateInt(typ:, location:, value:) ->
       NegateInt(
         typ: substitute_type(c, rename, typ),
+        location:,
         value: substitute_expression(c, rename, value),
       )
-    NegateBool(typ:, value:) ->
+    NegateBool(typ:, location:, value:) ->
       NegateBool(
         typ: substitute_type(c, rename, typ),
+        location:,
         value: substitute_expression(c, rename, value),
       )
-    Block(typ:, statements:) ->
+    Block(typ:, location:, statements:) ->
       Block(
         typ: substitute_type(c, rename, typ),
+        location:,
         statements: list.map(statements, substitute_statement(c, rename, _)),
       )
-    Panic(typ:, value:) ->
+    Panic(typ:, location:, value:) ->
       Panic(
         typ: substitute_type(c, rename, typ),
+        location:,
         value: option.map(value, substitute_expression(c, rename, _)),
       )
-    Todo(typ:, value:) ->
+    Todo(typ:, location:, value:) ->
       Todo(
         typ: substitute_type(c, rename, typ),
+        location:,
         value: option.map(value, substitute_expression(c, rename, _)),
       )
-    Echo(typ:, value:) ->
+    Echo(typ:, location:, value:) ->
       Echo(
         typ: substitute_type(c, rename, typ),
+        location:,
         value: option.map(value, substitute_expression(c, rename, _)),
       )
-    Tuple(typ:, elements:) ->
+    Tuple(typ:, location:, elements:) ->
       Tuple(
         typ: substitute_type(c, rename, typ),
+        location:,
         elements: list.map(elements, substitute_expression(c, rename, _)),
       )
-    List(typ:, elements:, rest:) ->
+    List(typ:, location:, elements:, rest:) ->
       List(
         typ: substitute_type(c, rename, typ),
+        location:,
         elements: list.map(elements, substitute_expression(c, rename, _)),
         rest: option.map(rest, substitute_expression(c, rename, _)),
       )
-    Fn(typ:, parameters:, return:, body:) ->
+    Fn(typ:, location:, parameters:, return:, body:) ->
       Fn(
         typ: substitute_type(c, rename, typ),
+        location:,
         parameters: list.map(parameters, substitute_function_parameter(
           c,
           rename,
@@ -2883,6 +3005,7 @@ fn substitute_expression(
       )
     RecordUpdate(
       typ:,
+      location:,
       module:,
       resolved_module:,
       constructor:,
@@ -2892,6 +3015,7 @@ fn substitute_expression(
     ) ->
       RecordUpdate(
         typ: substitute_type(c, rename, typ),
+        location:,
         module:,
         resolved_module:,
         constructor:,
@@ -2905,18 +3029,20 @@ fn substitute_expression(
           |> result.map_error(substitute_type(c, rename, _))
         }),
       )
-    FieldAccess(typ:, container:, module:, variant:, label:, index:) ->
+    FieldAccess(typ:, location:, container:, module:, variant:, label:, index:) ->
       FieldAccess(
         typ: substitute_type(c, rename, typ),
+        location:,
         container: substitute_expression(c, rename, container),
         module:,
         variant:,
         label:,
         index:,
       )
-    Call(typ:, function:, ordered_arguments:) ->
+    Call(typ:, location:, function:, ordered_arguments:) ->
       Call(
         typ: substitute_type(c, rename, typ),
+        location:,
         function: substitute_expression(c, rename, function),
         ordered_arguments: list.map(ordered_arguments, substitute_expression(
           c,
@@ -2924,15 +3050,24 @@ fn substitute_expression(
           _,
         )),
       )
-    TupleIndex(typ:, tuple:, index:) ->
+    TupleIndex(typ:, location:, tuple:, index:) ->
       TupleIndex(
         typ: substitute_type(c, rename, typ),
+        location:,
         tuple: substitute_expression(c, rename, tuple),
         index:,
       )
-    FnCapture(typ:, label:, function:, arguments_before:, arguments_after:) ->
+    FnCapture(
+      typ:,
+      location:,
+      label:,
+      function:,
+      arguments_before:,
+      arguments_after:,
+    ) ->
       FnCapture(
         typ: substitute_type(c, rename, typ),
+        location:,
         label:,
         function: substitute_expression(c, rename, function),
         arguments_before: list.map(
@@ -2944,9 +3079,10 @@ fn substitute_expression(
           map_field(_, substitute_expression(c, rename, _)),
         ),
       )
-    BitString(typ:, segments:) ->
+    BitString(typ:, location:, segments:) ->
       BitString(
         typ: substitute_type(c, rename, typ),
+        location:,
         segments: list.map(segments, fn(segment) {
           let #(expr, options) = segment
           #(
@@ -2962,15 +3098,17 @@ fn substitute_expression(
           )
         }),
       )
-    Case(typ:, subjects:, clauses:) ->
+    Case(typ:, location:, subjects:, clauses:) ->
       Case(
         typ: substitute_type(c, rename, typ),
+        location:,
         subjects: list.map(subjects, substitute_expression(c, rename, _)),
         clauses: list.map(clauses, substitute_clause(c, rename, _)),
       )
-    BinaryOperator(typ:, name:, left:, right:) ->
+    BinaryOperator(typ:, location:, name:, left:, right:) ->
       BinaryOperator(
         typ: substitute_type(c, rename, typ),
+        location:,
         name:,
         left: substitute_expression(c, rename, left),
         right: substitute_expression(c, rename, right),
@@ -3001,37 +3139,42 @@ fn substitute_pattern(
     PatternInt(..) -> pattern
     PatternFloat(..) -> pattern
     PatternString(..) -> pattern
-    PatternDiscard(typ:, name:) ->
-      PatternDiscard(typ: substitute_type(c, rename, typ), name:)
-    PatternVariable(typ:, name:) ->
-      PatternVariable(typ: substitute_type(c, rename, typ), name:)
-    PatternTuple(typ:, elems:) ->
+    PatternDiscard(typ:, location:, name:) ->
+      PatternDiscard(typ: substitute_type(c, rename, typ), location:, name:)
+    PatternVariable(typ:, location:, name:) ->
+      PatternVariable(typ: substitute_type(c, rename, typ), location:, name:)
+    PatternTuple(typ:, location:, elems:) ->
       PatternTuple(
         typ: substitute_type(c, rename, typ),
+        location:,
         elems: list.map(elems, substitute_pattern(c, rename, _)),
       )
-    PatternList(typ:, elements:, tail:) ->
+    PatternList(typ:, location:, elements:, tail:) ->
       PatternList(
         typ: substitute_type(c, rename, typ),
+        location:,
         elements: list.map(elements, substitute_pattern(c, rename, _)),
         tail: option.map(tail, substitute_pattern(c, rename, _)),
       )
-    PatternAssignment(typ:, pattern:, name:) ->
+    PatternAssignment(typ:, location:, pattern:, name:) ->
       PatternAssignment(
         typ: substitute_type(c, rename, typ),
+        location:,
         pattern: substitute_pattern(c, rename, pattern),
         name:,
       )
-    PatternConcatenate(typ:, prefix:, prefix_name:, suffix_name:) ->
+    PatternConcatenate(typ:, location:, prefix:, prefix_name:, suffix_name:) ->
       PatternConcatenate(
         typ: substitute_type(c, rename, typ),
+        location:,
         prefix:,
         prefix_name:,
         suffix_name:,
       )
-    PatternBitString(typ:, segments:) ->
+    PatternBitString(typ:, location:, segments:) ->
       PatternBitString(
         typ: substitute_type(c, rename, typ),
+        location:,
         segments: list.map(segments, fn(segment) {
           let #(pattern, options) = segment
           #(
@@ -3045,6 +3188,7 @@ fn substitute_pattern(
       )
     PatternConstructor(
       typ:,
+      location:,
       module:,
       constructor:,
       arguments:,
@@ -3054,6 +3198,7 @@ fn substitute_pattern(
     ) ->
       PatternConstructor(
         typ: substitute_type(c, rename, typ),
+        location:,
         module:,
         constructor:,
         arguments: list.map(
@@ -3103,30 +3248,34 @@ fn substitute_type(c: Context, rename: Dict(TypeVarId, TypeVarId), typ: Type) {
 fn substitute_annotation(
   c: Context,
   rename: Dict(TypeVarId, TypeVarId),
-  anno: Annotation,
+  annotation: Annotation,
 ) -> Annotation {
-  case anno {
-    NamedAnno(typ:, module:, name:, parameters:) ->
+  case annotation {
+    NamedAnno(typ:, location:, module:, name:, parameters:) ->
       NamedAnno(
         typ: substitute_type(c, rename, typ),
+        location:,
         module:,
         name:,
         parameters: list.map(parameters, substitute_annotation(c, rename, _)),
       )
-    TupleAnno(typ:, elements:) ->
+    TupleAnno(typ:, location:, elements:) ->
       TupleAnno(
         typ: substitute_type(c, rename, typ),
+        location:,
         elements: list.map(elements, substitute_annotation(c, rename, _)),
       )
-    FunctionAnno(typ:, parameters:, return:) ->
+    FunctionAnno(typ:, location:, parameters:, return:) ->
       FunctionAnno(
         typ: substitute_type(c, rename, typ),
+        location:,
         parameters: list.map(parameters, substitute_annotation(c, rename, _)),
         return: substitute_annotation(c, rename, return),
       )
-    VariableAnno(typ:, name:) ->
-      VariableAnno(typ: substitute_type(c, rename, typ), name:)
-    HoleAnno(typ:, name:) -> HoleAnno(substitute_type(c, rename, typ), name:)
+    VariableAnno(typ:, location:, name:) ->
+      VariableAnno(typ: substitute_type(c, rename, typ), location:, name:)
+    HoleAnno(typ:, location:, name:) ->
+      HoleAnno(substitute_type(c, rename, typ), location:, name:)
   }
 }
 
@@ -3138,7 +3287,7 @@ fn map_definition(def: Definition(a), func: fn(a) -> b) -> Definition(b) {
   Definition(..def, definition: func(def.definition))
 }
 
-fn location(c: Context) {
+fn context_location(c: Context) {
   Location(c.module.name, c.current_definition, c.current_span)
 }
 
@@ -3152,20 +3301,20 @@ fn map_bit_string_segment_option(
   }
 }
 
-fn list_pop(
+fn extract_matching(
   in list: List(a),
   one_that is_desired: fn(a) -> Bool,
 ) -> Result(#(a, List(a)), Nil) {
-  list_pop_loop(list, is_desired, [])
+  extract_matching_loop(list, is_desired, [])
 }
 
-fn list_pop_loop(haystack, predicate, checked) {
+fn extract_matching_loop(haystack, predicate, checked) {
   case haystack {
     [] -> Error(Nil)
     [first, ..rest] ->
       case predicate(first) {
         True -> Ok(#(first, list.append(list.reverse(checked), rest)))
-        False -> list_pop_loop(rest, predicate, [first, ..checked])
+        False -> extract_matching_loop(rest, predicate, [first, ..checked])
       }
   }
 }

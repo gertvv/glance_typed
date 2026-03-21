@@ -159,12 +159,12 @@ fn typed_node(
 
 fn statement_to_yaml(statement: typed.Statement) -> cymbal.Yaml {
   case statement {
-    typed.Use(typ:, patterns:, function:) ->
+    typed.Use(typ:, patterns:, function:, ..) ->
       typed_node("use", typ, [
         #("patterns", yaml_list(patterns, pattern_to_yaml)),
         #("function", expression_to_yaml(function)),
       ])
-    typed.Assignment(typ:, kind:, pattern:, annotation:, value:) ->
+    typed.Assignment(typ:, kind:, pattern:, annotation:, value:, ..) ->
       typed_node(
         "assignment",
         typ,
@@ -185,7 +185,7 @@ fn statement_to_yaml(statement: typed.Statement) -> cymbal.Yaml {
         ]
           |> option.values,
       )
-    typed.Assert(typ:, expression:, message:) ->
+    typed.Assert(typ:, expression:, message:, ..) ->
       typed_node(
         "assert",
         typ,
@@ -197,58 +197,58 @@ fn statement_to_yaml(statement: typed.Statement) -> cymbal.Yaml {
         ]
           |> option.values,
       )
-    typed.Expression(typ: _, expression:) -> expression_to_yaml(expression)
+    typed.Expression(expression:, ..) -> expression_to_yaml(expression)
   }
 }
 
 fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
   case expression {
-    typed.Int(typ:, value:) ->
+    typed.Int(typ:, value:, ..) ->
       typed_node("int_literal", typ, [#("value", cymbal.string(value))])
-    typed.Float(typ:, value:) ->
+    typed.Float(typ:, value:, ..) ->
       typed_node("float_literal", typ, [#("value", cymbal.string(value))])
-    typed.String(typ:, value:) ->
+    typed.String(typ:, value:, ..) ->
       typed_node("string_literal", typ, [#("value", cymbal.string(value))])
-    typed.LocalVariable(typ:, name:) ->
+    typed.LocalVariable(typ:, name:, ..) ->
       typed_node("local_variable", typ, [#("name", cymbal.string(name))])
-    typed.Function(typ:, module:, name:, labels: _) ->
+    typed.Function(typ:, module:, name:, ..) ->
       typed_node("function", typ, [
         #("module", cymbal.string(module)),
         #("name", cymbal.string(name)),
       ])
-    typed.Constant(typ:, module:, name:) ->
+    typed.Constant(typ:, module:, name:, ..) ->
       typed_node("constant", typ, [
         #("module", cymbal.string(module)),
         #("name", cymbal.string(name)),
       ])
-    typed.NegateInt(typ:, value:) ->
+    typed.NegateInt(typ:, value:, ..) ->
       typed_node("negate_int", typ, [#("value", expression_to_yaml(value))])
-    typed.NegateBool(typ:, value:) ->
+    typed.NegateBool(typ:, value:, ..) ->
       typed_node("negate_bool", typ, [#("value", expression_to_yaml(value))])
-    typed.Block(typ:, statements:) ->
+    typed.Block(typ:, statements:, ..) ->
       typed_node("block", typ, [
         #("statements", yaml_list(statements, statement_to_yaml)),
       ])
-    typed.Panic(typ:, value:) ->
+    typed.Panic(typ:, value:, ..) ->
       typed_node("panic", typ, case value {
         Some(value) -> [#("value", expression_to_yaml(value))]
         None -> []
       })
-    typed.Todo(typ:, value:) ->
+    typed.Todo(typ:, value:, ..) ->
       typed_node("todo", typ, case value {
         Some(value) -> [#("value", expression_to_yaml(value))]
         None -> []
       })
-    typed.Echo(typ:, value:) ->
+    typed.Echo(typ:, value:, ..) ->
       typed_node("echo", typ, case value {
         Some(value) -> [#("value", expression_to_yaml(value))]
         None -> []
       })
-    typed.Tuple(typ:, elements:) ->
+    typed.Tuple(typ:, elements:, ..) ->
       typed_node("tuple", typ, [
         #("elements", yaml_list(elements, expression_to_yaml)),
       ])
-    typed.List(typ:, elements:, rest:) ->
+    typed.List(typ:, elements:, rest:, ..) ->
       typed_node("list", typ, [
         #("elements", yaml_list(elements, expression_to_yaml)),
         ..case rest {
@@ -256,7 +256,7 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
           None -> []
         }
       ])
-    typed.Fn(typ:, parameters:, return:, body:) ->
+    typed.Fn(typ:, parameters:, return:, body:, ..) ->
       typed_node(
         "fn",
         typ,
@@ -274,12 +274,11 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
       )
     typed.RecordUpdate(
       typ:,
-      module: _,
       resolved_module:,
       constructor:,
       record:,
-      fields: _,
       ordered_fields:,
+      ..,
     ) ->
       typed_node("record_update", typ, [
         #("module", cymbal.string(resolved_module)),
@@ -295,7 +294,7 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
           }),
         ),
       ])
-    typed.FieldAccess(typ:, container:, module:, variant:, label:, index:) ->
+    typed.FieldAccess(typ:, container:, module:, variant:, label:, index:, ..) ->
       typed_node("field_access", typ, [
         #("container", expression_to_yaml(container)),
         #("module", cymbal.string(module)),
@@ -303,12 +302,12 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
         #("label", cymbal.string(label)),
         #("index", cymbal.int(index)),
       ])
-    typed.Call(typ:, function:, ordered_arguments:) ->
+    typed.Call(typ:, function:, ordered_arguments:, ..) ->
       typed_node("call", typ, [
         #("function", expression_to_yaml(function)),
         #("arguments", yaml_list(ordered_arguments, expression_to_yaml)),
       ])
-    typed.TupleIndex(typ:, tuple:, index:) ->
+    typed.TupleIndex(typ:, tuple:, index:, ..) ->
       typed_node("tuple_index", typ, [
         #("tuple", expression_to_yaml(tuple)),
         #("index", cymbal.int(index)),
@@ -319,6 +318,7 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
       function:,
       arguments_before:,
       arguments_after:,
+      ..,
     ) ->
       typed_node(
         "fn_capture",
@@ -345,7 +345,7 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
         ]
           |> option.values,
       )
-    typed.BitString(typ:, segments:) ->
+    typed.BitString(typ:, segments:, ..) ->
       typed_node("bit_string", typ, [
         #(
           "segments",
@@ -363,12 +363,12 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
           }),
         ),
       ])
-    typed.Case(typ:, subjects:, clauses:) ->
+    typed.Case(typ:, subjects:, clauses:, ..) ->
       typed_node("case", typ, [
         #("subjects", yaml_list(subjects, expression_to_yaml)),
         #("clauses", yaml_list(clauses, clause_to_yaml)),
       ])
-    typed.BinaryOperator(typ:, name:, left:, right:) ->
+    typed.BinaryOperator(typ:, name:, left:, right:, ..) ->
       typed_node("binary_operator", typ, [
         #("name", cymbal.string(binary_operator_to_string(name))),
         #("left", expression_to_yaml(left)),
@@ -437,21 +437,21 @@ fn clause_to_yaml(clause: typed.Clause) -> cymbal.Yaml {
 
 fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
   case pattern {
-    typed.PatternInt(typ:, value:) ->
+    typed.PatternInt(typ:, value:, ..) ->
       typed_node("int_pattern", typ, [#("value", cymbal.string(value))])
-    typed.PatternFloat(typ:, value:) ->
+    typed.PatternFloat(typ:, value:, ..) ->
       typed_node("float_pattern", typ, [#("value", cymbal.string(value))])
-    typed.PatternString(typ:, value:) ->
+    typed.PatternString(typ:, value:, ..) ->
       typed_node("string_pattern", typ, [#("value", cymbal.string(value))])
-    typed.PatternDiscard(typ:, name:) ->
+    typed.PatternDiscard(typ:, name:, ..) ->
       typed_node("discard_pattern", typ, [#("name", cymbal.string(name))])
-    typed.PatternVariable(typ:, name:) ->
+    typed.PatternVariable(typ:, name:, ..) ->
       typed_node("variable_pattern", typ, [#("name", cymbal.string(name))])
-    typed.PatternTuple(typ:, elems:) ->
+    typed.PatternTuple(typ:, elems:, ..) ->
       typed_node("tuple_pattern", typ, [
         #("elements", yaml_list(elems, pattern_to_yaml)),
       ])
-    typed.PatternList(typ:, elements:, tail:) ->
+    typed.PatternList(typ:, elements:, tail:, ..) ->
       typed_node(
         "list_pattern",
         typ,
@@ -461,12 +461,12 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
         ]
           |> option.values,
       )
-    typed.PatternAssignment(typ:, pattern:, name:) ->
+    typed.PatternAssignment(typ:, pattern:, name:, ..) ->
       typed_node("assignment_pattern", typ, [
         #("name", cymbal.string(name)),
         #("pattern", pattern_to_yaml(pattern)),
       ])
-    typed.PatternConcatenate(typ:, prefix:, prefix_name:, suffix_name:) ->
+    typed.PatternConcatenate(typ:, prefix:, prefix_name:, suffix_name:, ..) ->
       typed_node(
         "concatenate_pattern",
         typ,
@@ -479,7 +479,7 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
         ]
           |> option.values,
       )
-    typed.PatternBitString(typ:, segments:) ->
+    typed.PatternBitString(typ:, segments:, ..) ->
       typed_node("bit_string_pattern", typ, [
         #(
           "segments",
@@ -501,10 +501,10 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
       typ:,
       module:,
       constructor:,
-      arguments: _,
       ordered_arguments:,
       with_module:,
       with_spread:,
+      ..,
     ) ->
       typed_node("constructor_pattern", typ, [
         #("module", cymbal.string(module)),
@@ -600,7 +600,7 @@ fn annotation_to_string(annotation: typed.Annotation) -> String {
     string.join(list.map(annotations, annotation_to_string), ", ")
   }
   case annotation {
-    typed.NamedAnno(typ: _, module:, name:, parameters:) ->
+    typed.NamedAnno(module:, name:, parameters:, ..) ->
       case module {
         Some(module) -> module <> "."
         None -> ""
@@ -610,11 +610,11 @@ fn annotation_to_string(annotation: typed.Annotation) -> String {
         [] -> ""
         _ -> "(" <> of_list(parameters) <> ")"
       }
-    typed.TupleAnno(typ: _, elements:) -> "#(" <> of_list(elements) <> ")"
-    typed.FunctionAnno(typ: _, parameters:, return:) ->
+    typed.TupleAnno(elements:, ..) -> "#(" <> of_list(elements) <> ")"
+    typed.FunctionAnno(parameters:, return:, ..) ->
       "fn(" <> of_list(parameters) <> ") -> " <> annotation_to_string(return)
-    typed.VariableAnno(typ: _, name:) -> name
-    typed.HoleAnno(typ: _, name:) -> "_" <> name
+    typed.VariableAnno(name:, ..) -> name
+    typed.HoleAnno(name:, ..) -> "_" <> name
   }
 }
 
