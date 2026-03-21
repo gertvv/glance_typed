@@ -1,8 +1,8 @@
 ---
 version: 1.5.4
-title: recursive type test
+title: recursive custom type test
 file: ./test/glance_typed_test.gleam
-test_name: recursive_type_test
+test_name: recursive_custom_type_test
 ---
 ---
 name: test

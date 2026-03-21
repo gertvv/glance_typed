@@ -1,0 +1,64 @@
+---
+version: 1.5.4
+title: positional pattern with spread test
+file: ./test/glance_typed_test.gleam
+test_name: positional_pattern_with_spread_test
+---
+---
+name: test
+types:
+- name: Triple
+  type: "(0) test.Triple(0)"
+  publicity: public
+  opaque: false
+  parameters:
+  - a
+  variants:
+  - name: Triple
+    type: "(0) fn(0, 0, 0) -> test.Triple(0)"
+    fields:
+    - label: a
+      annotation: a
+    - label: b
+      annotation: a
+    - label: c
+      annotation: a
+functions:
+- name: first
+  type: "(0) fn(test.Triple(0)) -> 0"
+  publicity: public
+  parameters:
+  - type: "test.Triple(0)"
+    name: t
+    annotation: "Triple(a)"
+  body:
+  - kind: case
+    type: "0"
+    subjects:
+    - kind: local_variable
+      type: "test.Triple(0)"
+      name: t
+    clauses:
+    - patterns:
+      -
+        - kind: constructor_pattern
+          type: "test.Triple(0)"
+          constructor: Triple
+          with_spread: true
+          ordered_arguments:
+          - pattern:
+              kind: variable_pattern
+              type: "0"
+              name: x
+          - pattern:
+              kind: discard_pattern
+              type: "0"
+          - pattern:
+              kind: discard_pattern
+              type: "0"
+          resolved_module: test
+      body:
+        kind: local_variable
+        type: "0"
+        name: x
+

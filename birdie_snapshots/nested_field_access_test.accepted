@@ -1,0 +1,71 @@
+---
+version: 1.5.4
+title: nested field access test
+file: ./test/glance_typed_test.gleam
+test_name: nested_field_access_test
+---
+---
+name: test
+types:
+- name: Foo
+  type: "(0) test.Foo(0)"
+  publicity: private
+  opaque: false
+  parameters:
+  - a
+  variants:
+  - name: Foo
+    type: "(0) fn(0) -> test.Foo(0)"
+    fields:
+    - label: value
+      annotation: a
+functions:
+- name: get
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  body:
+  - kind: assignment
+    type: "test.Foo(test.Foo(gleam.Int))"
+    assignment_kind: let
+    pattern:
+      kind: variable_pattern
+      type: "test.Foo(test.Foo(gleam.Int))"
+      name: a
+    value:
+      kind: call
+      type: "test.Foo(test.Foo(gleam.Int))"
+      function:
+        kind: function
+        type: "fn(test.Foo(gleam.Int)) -> test.Foo(test.Foo(gleam.Int))"
+        module: test
+        name: Foo
+      arguments:
+      - kind: call
+        type: "test.Foo(gleam.Int)"
+        function:
+          kind: function
+          type: "fn(gleam.Int) -> test.Foo(gleam.Int)"
+          module: test
+          name: Foo
+        arguments:
+        - kind: int_literal
+          type: "gleam.Int"
+          value: "1"
+  - kind: field_access
+    type: "gleam.Int"
+    container:
+      kind: field_access
+      type: "test.Foo(gleam.Int)"
+      container:
+        kind: local_variable
+        type: "test.Foo(test.Foo(gleam.Int))"
+        name: a
+      module: test
+      variant: Foo
+      label: value
+      index: 0
+    module: test
+    variant: Foo
+    label: value
+    index: 0
+

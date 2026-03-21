@@ -60,6 +60,23 @@ pub fn higher_order_function_test() {
   |> birdie.snap(title: "higher order function test")
 }
 
+pub fn positional_pattern_with_spread_test() {
+  infer_yaml(
+    "
+    pub type Triple(a) {
+      Triple(a: a, b: a, c: a)
+    }
+
+    pub fn first(t: Triple(a)) {
+      case t {
+        Triple(x, ..) -> x
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "positional pattern with spread test")
+}
+
 pub fn list_pattern_test() {
   infer_yaml(
     "
@@ -74,7 +91,7 @@ pub fn list_pattern_test() {
   |> birdie.snap(title: "list pattern test")
 }
 
-pub fn recursive_type_test() {
+pub fn recursive_custom_type_test() {
   infer_yaml(
     "
     pub type Tree(e) {
@@ -83,7 +100,7 @@ pub fn recursive_type_test() {
     }
     ",
   )
-  |> birdie.snap(title: "recursive type test")
+  |> birdie.snap(title: "recursive custom type test")
 }
 
 pub fn type_alias_test() {
@@ -116,6 +133,71 @@ fn option_dependencies() -> dict.Dict(String, typed.ModuleInterface) {
       "gleam/option",
     )
   dict.from_list([#("gleam", prelude), #("gleam/option", option_interface)])
+}
+
+pub fn field_access_test() {
+  infer_yaml(
+    "
+    pub type Box(a) {
+      Box(value: a)
+    }
+
+    pub fn get_value(b: Box(a)) {
+      b.value
+    }
+    ",
+  )
+  |> birdie.snap(title: "field access test")
+}
+
+pub fn nested_field_access_test() {
+  infer_yaml(
+    "
+    type Foo(a) {
+      Foo(value: a)
+    }
+
+    pub fn get() {
+      let a = Foo(Foo(1))
+      a.value.value
+    }
+    ",
+  )
+  |> birdie.snap(title: "nested field access test")
+}
+
+pub fn pipe_with_labelled_arg_test() {
+  infer_yaml(
+    "
+    pub fn write(to file, data string) {
+      panic
+    }
+    pub fn get() {
+      123
+      |> write(to: \"foo\")
+    }
+    ",
+  )
+  |> birdie.snap(title: "pipe with labelled arg test")
+}
+
+pub fn fn_arg_field_access_test() {
+  infer_yaml(
+    "
+    pub type Foo(a) {
+      Foo(value: a)
+    }
+
+    fn apply(x: a, f: fn(a) -> b) -> b {
+      f(x)
+    }
+
+    pub fn main() {
+      apply(Foo(1), fn(foo) { foo.value })
+    }
+    ",
+  )
+  |> birdie.snap(title: "fn arg field access test")
 }
 
 pub fn imported_type_alias_test() {

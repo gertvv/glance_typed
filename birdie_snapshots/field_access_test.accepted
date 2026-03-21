@@ -1,0 +1,41 @@
+---
+version: 1.5.4
+title: field access test
+file: ./test/glance_typed_test.gleam
+test_name: field_access_test
+---
+---
+name: test
+types:
+- name: Box
+  type: "(0) test.Box(0)"
+  publicity: public
+  opaque: false
+  parameters:
+  - a
+  variants:
+  - name: Box
+    type: "(0) fn(0) -> test.Box(0)"
+    fields:
+    - label: value
+      annotation: a
+functions:
+- name: get_value
+  type: "(0) fn(test.Box(0)) -> 0"
+  publicity: public
+  parameters:
+  - type: "test.Box(0)"
+    name: b
+    annotation: "Box(a)"
+  body:
+  - kind: field_access
+    type: "0"
+    container:
+      kind: local_variable
+      type: "test.Box(0)"
+      name: b
+    module: test
+    variant: Box
+    label: value
+    index: 0
+

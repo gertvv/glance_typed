@@ -1,0 +1,84 @@
+---
+version: 1.5.4
+title: fn arg field access test
+file: ./test/glance_typed_test.gleam
+test_name: fn_arg_field_access_test
+---
+---
+name: test
+types:
+- name: Foo
+  type: "(0) test.Foo(0)"
+  publicity: public
+  opaque: false
+  parameters:
+  - a
+  variants:
+  - name: Foo
+    type: "(0) fn(0) -> test.Foo(0)"
+    fields:
+    - label: value
+      annotation: a
+functions:
+- name: main
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  body:
+  - kind: call
+    type: "gleam.Int"
+    function:
+      kind: function
+      type: "fn(test.Foo(gleam.Int), fn(test.Foo(gleam.Int)) -> gleam.Int) -> gleam.Int"
+      module: test
+      name: apply
+    arguments:
+    - kind: call
+      type: "test.Foo(gleam.Int)"
+      function:
+        kind: function
+        type: "fn(gleam.Int) -> test.Foo(gleam.Int)"
+        module: test
+        name: Foo
+      arguments:
+      - kind: int_literal
+        type: "gleam.Int"
+        value: "1"
+    - kind: fn
+      type: "fn(test.Foo(gleam.Int)) -> gleam.Int"
+      parameters:
+      - type: "test.Foo(gleam.Int)"
+        name: foo
+      body:
+      - kind: field_access
+        type: "gleam.Int"
+        container:
+          kind: local_variable
+          type: "test.Foo(gleam.Int)"
+          name: foo
+        module: test
+        variant: Foo
+        label: value
+        index: 0
+- name: apply
+  type: "(0, 1) fn(0, fn(0) -> 1) -> 1"
+  publicity: private
+  parameters:
+  - type: "0"
+    name: x
+    annotation: a
+  - type: "fn(0) -> 1"
+    name: f
+    annotation: "fn(a) -> b"
+  return: b
+  body:
+  - kind: call
+    type: "1"
+    function:
+      kind: local_variable
+      type: "fn(0) -> 1"
+      name: f
+    arguments:
+    - kind: local_variable
+      type: "0"
+      name: x
+

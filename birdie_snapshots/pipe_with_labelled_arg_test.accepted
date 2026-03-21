@@ -1,0 +1,41 @@
+---
+version: 1.5.4
+title: pipe with labelled arg test
+file: ./test/glance_typed_test.gleam
+test_name: pipe_with_labelled_arg_test
+---
+---
+name: test
+functions:
+- name: get
+  type: "(0) fn() -> 0"
+  publicity: public
+  body:
+  - kind: call
+    type: "0"
+    function:
+      kind: function
+      type: "fn(gleam.String, gleam.Int) -> 0"
+      module: test
+      name: write
+    arguments:
+    - kind: string_literal
+      type: "gleam.String"
+      value: foo
+    - kind: int_literal
+      type: "gleam.Int"
+      value: "123"
+- name: write
+  type: "(0, 1, 2) fn(0, 1) -> 2"
+  publicity: public
+  parameters:
+  - type: "0"
+    label: to
+    name: file
+  - type: "1"
+    label: data
+    name: string
+  body:
+  - kind: panic
+    type: "2"
+

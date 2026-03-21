@@ -216,10 +216,10 @@ pub type Expression {
     module: Option(String),
     constructor: String,
     record: Expression,
-    // TODO RecordUpdateField
+    // TODO Use RecordUpdateField like in glance
     fields: List(#(String, Expression)),
     resolved_module: String,
-    // TODO This type is confusing
+    // TODO This type is confusing, think of a better way to represent this.
     ordered_fields: List(Result(Field(Expression), Type)),
   )
   FieldAccess(
@@ -235,8 +235,7 @@ pub type Expression {
     typ: Type,
     location: Span,
     function: Expression,
-    // TODO provide args in original order
-    // arguments: List(Field(Expression)),
+    arguments: List(Field(Expression)),
     ordered_arguments: List(Expression),
   )
   TupleIndex(typ: Type, location: Span, tuple: Expression, index: Int)
@@ -1672,26 +1671,17 @@ fn infer_pattern(
       )
 
       // infer the type of all arguments
-      use #(c, n, arguments) <- result.try(
-        list.try_fold(arguments, #(c, n, []), fn(acc, arg) {
-          let #(c, n, arguments) = acc
-
-          let #(item, make_field) = case arg {
-            g.LabelledField(label:, label_location:, item:) -> #(item, fn(x) {
-              LabelledField(label, label_location, x)
-            })
-            g.ShorthandField(label:, location:) -> #(
-              g.PatternVariable(location, label),
-              fn(x) { ShorthandField(label, location, x) },
-            )
-            g.UnlabelledField(item) -> #(item, fn(x) { UnlabelledField(x) })
+      let arguments =
+        list.map(arguments, fn(arg) {
+          case arg {
+            g.LabelledField(label:, label_location:, item:) ->
+              LabelledField(label, label_location, item)
+            g.ShorthandField(label:, location:) ->
+              LabelledField(label, location, g.PatternVariable(location, label))
+            g.UnlabelledField(item:) -> UnlabelledField(item)
           }
-
-          use #(c, n, arg2) <- result.map(infer_pattern(c, n, item))
-          #(c, n, [make_field(arg2), ..arguments])
-        }),
-      )
-      let arguments = list.reverse(arguments)
+        })
+      use #(c, n, arguments) <- result.try(infer_pattern_fields(c, n, arguments))
 
       // handle labels
       use #(c, ordered_arguments) <- result.try(case with_spread {
@@ -1948,7 +1938,11 @@ fn match_labels_optional(
     [p, ..p_rest] ->
       case extract_matching(args, fn(a) { field_label(a) == p }) {
         Ok(#(a, a_rest)) -> [Some(a), ..match_labels_optional(a_rest, p_rest)]
-        Error(_) -> [None, ..match_labels_optional(args, p_rest)]
+        Error(_) ->
+          case extract_matching(args, fn(a) { field_label(a) == None }) {
+            Ok(#(a, a_rest)) -> [Some(a), ..match_labels_optional(a_rest, p_rest)]
+            Error(_) -> [None, ..match_labels_optional(args, p_rest)]
+          }
       }
   }
 }
@@ -2216,7 +2210,7 @@ fn infer_expression(
 
         #(
           c,
-          FieldAccess(typ, location, value, module, variant.name, label, index),
+          FieldAccess(typ, location, value, label, module, variant.name, index),
         )
       }
       case field_access {
@@ -2246,89 +2240,64 @@ fn infer_expression(
       // infer the type of the function
       use #(c, fun) <- result.try(infer_expression(c, n, function))
 
-      // handle labels
+      // get labels from function type
       let labels = case fun {
         Function(labels:, ..) -> labels
         _ -> list.map(arguments, fn(_) { None })
       }
 
+      // convert glance fields to typed fields (original order)
       let args =
         list.map(arguments, fn(arg) {
           case arg {
             g.LabelledField(label:, label_location:, item:) ->
               LabelledField(label, label_location, item)
             g.ShorthandField(label:, location:) ->
-              ShorthandField(label, location, g.Variable(location, label))
-            g.UnlabelledField(item) -> UnlabelledField(item)
+              LabelledField(label, location, g.Variable(location, label))
+            g.UnlabelledField(item:) -> UnlabelledField(item)
           }
         })
 
-      use args <- result.try(match_labels(c, args, labels))
+      // build type hints by label/position for Fn arg inference
+      let hinted_args = case resolve_type(c, fun.typ) {
+        FunctionType(params, _) -> build_arg_hints(args, labels, params)
+        _ -> list.map(args, fn(arg) { #(None, arg) })
+      }
 
-      // use fun parameter type as type hints for inferring arguments
-      use args <- result.try(case resolve_type(c, fun.typ) {
-        FunctionType(params, _ret) -> {
-          let params = list.map(params, Some)
-          use args <- result.map(
-            list.strict_zip(params, args)
-            |> result.map_error(fn(_) {
-              WrongArity(
-                context_location(c),
-                list.length(params),
-                list.length(args),
-              )
-            }),
-          )
-          args
-        }
-        _ -> Ok(list.map(args, fn(arg) { #(None, arg) }))
-      })
-      // infer the type of all args
-      use #(c, args) <- result.try(
-        list.try_fold(args, #(c, []), fn(acc, type_hint_and_field) {
-          let #(c, args) = acc
-          let #(type_hint, field_arg) = type_hint_and_field
+      // infer all args in original (caller) order
+      use #(c, arguments) <- result.try(
+        list.try_fold(hinted_args, #(c, []), fn(acc, hinted_arg) {
+          let #(c, done) = acc
+          let #(hint, field_arg) = hinted_arg
 
           // give type hint when arg is a fn
-          let field_arg_item = field_item(field_arg)
-          let result = case field_arg_item {
+          let result = case field_item(field_arg) {
             g.Fn(location:, arguments:, return_annotation:, body:) ->
-              infer_fn(
-                c,
-                n,
-                location,
-                arguments,
-                return_annotation,
-                body,
-                type_hint,
-              )
-            _ -> infer_expression(c, n, field_arg_item)
+              infer_fn(c, n, location, arguments, return_annotation, body, hint)
+            _ -> infer_expression(c, n, field_item(field_arg))
           }
           use #(c, inferred_arg) <- result.try(result)
 
-          use c <- result.map(case type_hint {
-            Some(hint) -> unify(c, hint, inferred_arg.typ)
+          use c <- result.map(case hint {
+            Some(h) -> unify(c, h, inferred_arg.typ)
             None -> Ok(c)
           })
 
-          let field_with_inferred = case field_arg {
-            LabelledField(label, label_location, _) ->
-              LabelledField(label, label_location, inferred_arg)
-            ShorthandField(label, location, _) ->
-              ShorthandField(label, location, inferred_arg)
-            UnlabelledField(_) -> UnlabelledField(inferred_arg)
-          }
-
-          #(c, [field_with_inferred, ..args])
+          #(c, [map_field(field_arg, fn(_) { inferred_arg }), ..done])
         }),
       )
-      let args = list.reverse(args)
-      let arg_types = list.map(args, fn(field) { field_item(field).typ })
-      let ordered_arguments = list.map(args, fn(field) { field_item(field) })
+      let arguments = list.reverse(arguments)
+
+      // reorder to positional order via label matching
+      use ordered_fields <- result.try(match_labels(c, arguments, labels))
+
+      let arg_types = list.map(ordered_fields, fn(f) { field_item(f).typ })
+      let ordered_arguments = list.map(ordered_fields, field_item)
+
       // unify the function type with the types of args
       let #(c, typ) = new_type_var_ref(c)
       use c <- result.map(unify(c, fun.typ, FunctionType(arg_types, typ)))
-      #(c, Call(typ, span, fun, ordered_arguments))
+      #(c, Call(typ, span, fun, arguments, ordered_arguments))
     }
     g.TupleIndex(location:, tuple:, index:) -> {
       use #(c, tuple) <- result.try(infer_expression(c, n, tuple))
@@ -3132,11 +3101,15 @@ fn substitute_expression(
         label:,
         index:,
       )
-    Call(typ:, location:, function:, ordered_arguments:) ->
+    Call(typ:, location:, function:, arguments:, ordered_arguments:) ->
       Call(
         typ: substitute_type(c, rename, typ),
         location:,
         function: substitute_expression(c, rename, function),
+        arguments: list.map(
+          arguments,
+          map_field(_, substitute_expression(c, rename, _)),
+        ),
         ordered_arguments: list.map(ordered_arguments, substitute_expression(
           c,
           rename,
@@ -3380,6 +3353,81 @@ fn map_field(field: Field(a), func: fn(a) -> b) -> Field(b) {
       ShorthandField(label, location, func(item))
     UnlabelledField(item) -> UnlabelledField(func(item))
   }
+}
+
+fn infer_pattern_fields(
+  c: Context,
+  n: LocalEnv,
+  fields: List(Field(g.Pattern)),
+) -> Result(#(Context, LocalEnv, List(Field(Pattern))), Error) {
+  use #(c, n, fields) <- result.map(
+    list.try_fold(fields, #(c, n, []), fn(acc, field) {
+      let #(c, n, done) = acc
+      use #(c, n, inferred) <- result.map(infer_pattern(c, n, field_item(field)))
+      #(c, n, [map_field(field, fn(_) { inferred }), ..done])
+    }),
+  )
+  #(c, n, list.reverse(fields))
+}
+
+fn build_arg_hints(
+  args: List(Field(a)),
+  labels: List(Option(String)),
+  param_types: List(Type),
+) -> List(#(Option(Type), Field(a))) {
+  let labelled_hints =
+    list.zip(labels, param_types)
+    |> list.filter_map(fn(pair) {
+      case pair.0 {
+        Some(label) -> Ok(#(label, pair.1))
+        None -> Error(Nil)
+      }
+    })
+    |> dict.from_list
+  // Collect the labels used by labelled call-args so we can skip those slots
+  let claimed_labels =
+    list.filter_map(args, fn(a) {
+      case field_label(a) {
+        Some(l) -> Ok(l)
+        None -> Error(Nil)
+      }
+    })
+  // Unlabelled call-args are matched positionally against params whose slot is
+  // not already claimed by a labelled call-arg (Gleam allows calling labelled
+  // functions without labels, positionally)
+  let unlabelled_hints =
+    list.zip(labels, param_types)
+    |> list.filter_map(fn(pair) {
+      case pair.0 {
+        Some(label) ->
+          case list.contains(claimed_labels, label) {
+            True -> Error(Nil)
+            False -> Ok(pair.1)
+          }
+        None -> Ok(pair.1)
+      }
+    })
+  let #(_, hinted_reversed) =
+    list.fold(args, #(unlabelled_hints, []), fn(state, arg) {
+      let #(remaining_unlabelled, done) = state
+      case field_label(arg) {
+        Some(label) -> #(remaining_unlabelled, [
+          #(
+            dict.get(labelled_hints, label)
+              |> result.map(Some)
+              |> result.unwrap(None),
+            arg,
+          ),
+          ..done
+        ])
+        None ->
+          case remaining_unlabelled {
+            [hint, ..rest] -> #(rest, [#(Some(hint), arg), ..done])
+            [] -> #([], [#(None, arg), ..done])
+          }
+      }
+    })
+  list.reverse(hinted_reversed)
 }
 
 fn field_label(field: Field(a)) -> Option(String) {
