@@ -10,7 +10,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
-// TODO rename to "prelude"?
+// TODO rename variable to "prelude"?
 pub const builtin = "gleam"
 
 pub const nil_type = NamedType(builtin, "Nil", [])
@@ -172,6 +172,15 @@ pub type Pattern {
   )
 }
 
+pub type RecordUpdateField(t) {
+  RecordUpdateField(label: String, item: Option(t))
+}
+
+pub type RecordFieldUpdate {
+  UpdatedField(typ: Type, label: String, value: Expression)
+  OriginalField(typ: Type, label: String)
+}
+
 pub type Expression {
   Int(typ: Type, location: Span, value: String)
   Float(typ: Type, location: Span, value: String)
@@ -216,11 +225,9 @@ pub type Expression {
     module: Option(String),
     constructor: String,
     record: Expression,
-    // TODO Use RecordUpdateField like in glance
-    fields: List(#(String, Expression)),
+    fields: List(RecordUpdateField(Expression)),
     resolved_module: String,
-    // TODO This type is confusing, think of a better way to represent this.
-    ordered_fields: List(Result(Field(Expression), Type)),
+    ordered_fields: List(RecordFieldUpdate),
   )
   FieldAccess(
     typ: Type,
@@ -2137,16 +2144,19 @@ fn infer_expression(
             None -> g.Variable(location, field.label)
           }
           use #(c, value) <- result.map(infer_expression(c, n, item))
-          #(c, [#(field.label, value), ..updated_fields])
+          #(c, [RecordUpdateField(label: field.label, item: Some(value)), ..updated_fields])
         }),
       )
       let updated_fields = list.reverse(updated_fields)
 
       let fields =
-        list.map(updated_fields, fn(x) { LabelledField(x.0, Span(0, 0), x.1) })
+        list.map(updated_fields, fn(x) {
+          let assert Some(expr) = x.item
+          LabelledField(x.label, Span(0, 0), expr)
+        })
       let ordered_fields = match_labels_optional(fields, labels)
       use ordered_fields <- result.try(
-        list.strict_zip(ordered_fields, constructor_args)
+        list.strict_zip(ordered_fields, list.zip(labels, constructor_args))
         |> result.map_error(fn(_) {
           WrongArity(
             context_location(c),
@@ -2159,13 +2169,22 @@ fn infer_expression(
       use #(c, ordered_fields) <- result.map(
         list.try_fold(ordered_fields, #(c, []), fn(acc, x) {
           let #(c, fields) = acc
-          let #(given, expected) = x
+          let #(given, #(param_label, expected)) = x
           use #(c, result) <- result.map(case given {
             Some(e) -> {
-              use c <- result.map(unify(c, field_item(e).typ, expected))
-              #(c, Ok(e))
+              let expr = field_item(e)
+              let label = case e {
+                LabelledField(label, _, _) -> label
+                ShorthandField(label:, ..) -> label
+                UnlabelledField(_) -> ""
+              }
+              use c <- result.map(unify(c, expr.typ, expected))
+              #(c, UpdatedField(typ: expr.typ, label: label, value: expr))
             }
-            None -> Ok(#(c, Error(expected)))
+            None -> {
+              let label = option.unwrap(param_label, "")
+              Ok(#(c, OriginalField(typ: expected, label: label)))
+            }
           })
           #(c, [result, ..fields])
         }),
@@ -3101,12 +3120,20 @@ fn substitute_expression(
         constructor:,
         record: substitute_expression(c, rename, record),
         fields: list.map(fields, fn(field) {
-          let #(name, expr) = field
-          #(name, substitute_expression(c, rename, expr))
+          let assert Some(expr) = field.item
+          RecordUpdateField(..field, item: Some(substitute_expression(c, rename, expr)))
         }),
         ordered_fields: list.map(ordered_fields, fn(field) {
-          result.map(field, map_field(_, substitute_expression(c, rename, _)))
-          |> result.map_error(substitute_type(c, rename, _))
+          case field {
+            UpdatedField(typ:, label:, value:) ->
+              UpdatedField(
+                typ: substitute_type(c, rename, typ),
+                label: label,
+                value: substitute_expression(c, rename, value),
+              )
+            OriginalField(typ:, label:) ->
+              OriginalField(typ: substitute_type(c, rename, typ), label: label)
+          }
         }),
       )
     FieldAccess(
@@ -3419,8 +3446,7 @@ fn build_arg_hints(
       }
     })
   // Unlabelled call-args are matched positionally against params whose slot is
-  // not already claimed by a labelled call-arg (Gleam allows calling labelled
-  // functions without labels, positionally)
+  // not already claimed by a labelled call-arg
   let unlabelled_hints =
     list.zip(labels, param_types)
     |> list.filter_map(fn(pair) {

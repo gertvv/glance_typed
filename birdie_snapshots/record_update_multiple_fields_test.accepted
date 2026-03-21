@@ -47,15 +47,18 @@ functions:
       type: "test.Point"
       name: p
     fields:
-    - label: x
-      value:
-        kind: int_literal
-        type: "gleam.Int"
-        value: "0"
-    - label: y
+    - type: "gleam.Int"
+      label: x
       value:
         kind: int_literal
         type: "gleam.Int"
         value: "0"
     - type: "gleam.Int"
+      label: y
+      value:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "0"
+    - type: "gleam.Int"
+      label: z
 

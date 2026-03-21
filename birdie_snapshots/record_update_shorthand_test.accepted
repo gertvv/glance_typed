@@ -1,8 +1,8 @@
 ---
 version: 1.5.4
-title: record update test
+title: record update shorthand test
 file: ./test/glance_typed_test.gleam
-test_name: record_update_test
+test_name: record_update_shorthand_test
 ---
 ---
 name: test
@@ -26,7 +26,7 @@ types:
         annotation: a
         type: "0"
 functions:
-- name: reset_x
+- name: copy_x
   type: "(0) fn(test.Point(0), 0) -> test.Point(0)"
   publicity: public
   parameters:
@@ -36,7 +36,7 @@ functions:
       annotation: "Point(a)"
       type: "test.Point(0)"
   - type: "0"
-    name: new_x
+    name: x
     annotation:
       annotation: a
       type: "0"
@@ -55,7 +55,7 @@ functions:
       value:
         kind: local_variable
         type: "0"
-        name: new_x
+        name: x
     - type: "0"
       label: y
 

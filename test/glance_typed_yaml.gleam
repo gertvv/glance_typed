@@ -312,8 +312,17 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
           "fields",
           yaml_list(ordered_fields, fn(field) {
             case field {
-              Ok(field) -> field_to_yaml(field, "value", expression_to_yaml)
-              Error(typ) -> yaml_block([#("type", type_to_yaml(typ))])
+              typed.UpdatedField(typ:, label:, value:) ->
+                yaml_block([
+                  #("type", type_to_yaml(typ)),
+                  #("label", cymbal.string(label)),
+                  #("value", expression_to_yaml(value)),
+                ])
+              typed.OriginalField(typ:, label:) ->
+                yaml_block([
+                  #("type", type_to_yaml(typ)),
+                  #("label", cymbal.string(label)),
+                ])
             }
           }),
         ),

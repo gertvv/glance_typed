@@ -972,6 +972,17 @@ pub fn record_update_multiple_fields_test() {
   |> birdie.snap(title: "record update multiple fields test")
 }
 
+pub fn record_update_shorthand_test() {
+  infer_yaml(
+    "
+    pub type Point(a) { Point(x: a, y: a) }
+
+    pub fn copy_x(p: Point(a), x: a) { Point(..p, x:) }
+    ",
+  )
+  |> birdie.snap(title: "record update shorthand test")
+}
+
 pub fn use_imported_constant_test() {
   let deps =
     dict.from_list([
