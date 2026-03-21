@@ -34,7 +34,6 @@ functions:
       -
         - kind: discard_pattern
           type: "gleam.Int"
-          name: 
       body:
         kind: call
         type: "gleam.Int"

@@ -49,9 +49,6 @@ pub type AttributeArgument {
   StringAttributeArgument(value: String)
 }
 
-// TODO it would probably be good to parameterise the Type
-// then we can offer an ast with resolved types and also library users
-// can add their own info
 pub type Module {
   Module(
     name: String,
@@ -105,7 +102,12 @@ pub type Location {
 }
 
 pub type Statement {
-  Use(typ: Type, location: Span, patterns: List(Pattern), function: Expression)
+  Use(
+    typ: Type,
+    location: Span,
+    patterns: List(UsePattern),
+    function: Expression,
+  )
   Assignment(
     typ: Type,
     location: Span,
@@ -125,7 +127,11 @@ pub type Statement {
 
 pub type AssignmentKind {
   Let
-  LetAssert
+  LetAssert(message: Option(Expression))
+}
+
+pub type UsePattern {
+  UsePattern(pattern: Pattern, annotation: Option(Annotation))
 }
 
 pub type Pattern {
@@ -134,7 +140,7 @@ pub type Pattern {
   PatternString(typ: Type, location: Span, value: String)
   PatternDiscard(typ: Type, location: Span, name: String)
   PatternVariable(typ: Type, location: Span, name: String)
-  PatternTuple(typ: Type, location: Span, elems: List(Pattern))
+  PatternTuple(typ: Type, location: Span, elements: List(Pattern))
   PatternList(
     typ: Type,
     location: Span,
@@ -147,22 +153,22 @@ pub type Pattern {
     location: Span,
     prefix: String,
     prefix_name: Option(AssignmentName),
-    suffix_name: AssignmentName,
+    rest_name: AssignmentName,
   )
   PatternBitString(
     typ: Type,
     location: Span,
     segments: List(#(Pattern, List(BitStringSegmentOption(Pattern)))),
   )
-  PatternConstructor(
+  PatternVariant(
     typ: Type,
     location: Span,
-    module: String,
+    module: Option(String),
     constructor: String,
     arguments: List(Field(Pattern)),
-    ordered_arguments: List(Field(Pattern)),
-    with_module: Bool,
     with_spread: Bool,
+    resolved_module: String,
+    ordered_arguments: List(Field(Pattern)),
   )
 }
 
@@ -182,9 +188,14 @@ pub type Expression {
   NegateInt(typ: Type, location: Span, value: Expression)
   NegateBool(typ: Type, location: Span, value: Expression)
   Block(typ: Type, location: Span, statements: List(Statement))
-  Panic(typ: Type, location: Span, value: Option(Expression))
-  Todo(typ: Type, location: Span, value: Option(Expression))
-  Echo(typ: Type, location: Span, value: Option(Expression))
+  Panic(typ: Type, location: Span, message: Option(Expression))
+  Todo(typ: Type, location: Span, message: Option(Expression))
+  Echo(
+    typ: Type,
+    location: Span,
+    expression: Option(Expression),
+    message: Option(Expression),
+  )
   Tuple(typ: Type, location: Span, elements: List(Expression))
   List(
     typ: Type,
@@ -195,27 +206,30 @@ pub type Expression {
   Fn(
     typ: Type,
     location: Span,
+    // TODO FnParameter (no labels)
     parameters: List(FunctionParameter),
-    return: Option(Annotation),
+    return_annotation: Option(Annotation),
     body: List(Statement),
   )
   RecordUpdate(
     typ: Type,
     location: Span,
     module: Option(String),
-    resolved_module: String,
     constructor: String,
     record: Expression,
+    // TODO RecordUpdateField
     fields: List(#(String, Expression)),
+    resolved_module: String,
+    // TODO This type is confusing
     ordered_fields: List(Result(Field(Expression), Type)),
   )
   FieldAccess(
     typ: Type,
     location: Span,
     container: Expression,
-    module: String,
-    variant: String,
     label: String,
+    module: String,
+    constructor: String,
     index: Int,
   )
   Call(
@@ -1639,14 +1653,8 @@ fn infer_pattern(
       #(c, n, PatternBitString(bit_array_type, location, segs))
     }
     g.PatternVariant(location:, module:, constructor:, arguments:, with_spread:) -> {
-      // was a module name provided
-      let with_module = case module {
-        Some(_) -> True
-        None -> False
-      }
-
       // resolve the constructor function
-      use #(module, constructor, poly, labels) <- result.try(
+      use #(resolved_module, constructor, poly, labels) <- result.try(
         resolve_constructor(c, module, constructor),
       )
 
@@ -1711,14 +1719,14 @@ fn infer_pattern(
       })
 
       let pattern =
-        PatternConstructor(
+        PatternVariant(
           typ:,
           location:,
           module:,
           constructor:,
           arguments:,
           ordered_arguments:,
-          with_module:,
+          resolved_module:,
           with_spread:,
         )
 
@@ -1800,10 +1808,15 @@ fn infer_body(
           use c <- result.try(unify(c, pattern.typ, value.typ))
 
           // TODO check the right "kind" was used (needs exhaustive checking)
-          let kind = case kind {
-            g.Let -> Let
-            g.LetAssert(_message) -> LetAssert
-          }
+          use #(c, kind) <- result.try(case kind {
+            g.Let -> Ok(#(c, Let))
+            g.LetAssert(None) -> Ok(#(c, LetAssert(None)))
+            g.LetAssert(Some(message)) -> {
+              use #(c, message) <- result.try(infer_expression(c, n, message))
+              use c <- result.try(unify(c, message.typ, string_type))
+              Ok(#(c, LetAssert(Some(message))))
+            }
+          })
 
           let statement =
             Assignment(
@@ -2555,16 +2568,23 @@ fn infer_expression(
 
       #(c, BinaryOperator(typ, location, name, left, right))
     }
-    g.Echo(location:, expression:, ..) -> {
-      case expression {
-        Some(expr) -> {
-          use #(c, expr) <- result.try(infer_expression(c, n, expr))
-          Ok(#(c, Echo(expr.typ, location, Some(expr))))
+    g.Echo(location:, expression:, message:) -> {
+      use #(c, typ, expression) <- result.try(case expression {
+        Some(expression) -> {
+          use #(c, expression) <- result.try(infer_expression(c, n, expression))
+          Ok(#(c, expression.typ, Some(expression)))
         }
-        None -> {
-          Ok(#(c, Echo(nil_type, location, None)))
+        None -> Ok(#(c, nil_type, None))
+      })
+      use #(c, message) <- result.try(case message {
+        Some(message) -> {
+          use #(c, message) <- result.try(infer_expression(c, n, message))
+          use c <- result.try(unify(c, message.typ, string_type))
+          Ok(#(c, Some(message)))
         }
-      }
+        None -> Ok(#(c, None))
+      })
+      Ok(#(c, Echo(typ, location, expression, message)))
     }
   }
 }
@@ -2598,7 +2618,7 @@ fn infer_fn(
   n: Dict(String, Type),
   location: Span,
   parameters: List(g.FnParameter),
-  return: Option(g.Type),
+  return_annotation: Option(g.Type),
   body: List(g.Statement),
   hint: Option(Type),
 ) -> Result(#(Context, Expression), Error) {
@@ -2606,13 +2626,11 @@ fn infer_fn(
   let parameters =
     list.map(parameters, fn(p) { g.FunctionParameter(None, p.name, p.type_) })
 
-  use #(c, parameters, return) <- result.try(infer_function_parameters(
-    c,
-    parameters,
-    return,
-  ))
+  use #(c, parameters, return_annotation) <- result.try(
+    infer_function_parameters(c, parameters, return_annotation),
+  )
 
-  let #(c, return_type) = case return {
+  let #(c, return_type) = case return_annotation {
     Some(x) -> #(c, x.typ)
     None -> new_type_var_ref(c)
   }
@@ -2645,7 +2663,7 @@ fn infer_fn(
     Error(_) -> Ok(c)
   })
 
-  let fun = Fn(typ:, location:, parameters:, return:, body:)
+  let fun = Fn(typ:, location:, parameters:, return_annotation:, body:)
   #(c, fun)
 }
 
@@ -2893,7 +2911,7 @@ fn substitute_statement(
       Use(
         typ: substitute_type(c, rename, typ),
         location:,
-        patterns: list.map(patterns, substitute_pattern(c, rename, _)),
+        patterns: list.map(patterns, substitute_use_pattern(c, rename, _)),
         function: substitute_expression(c, rename, function),
       )
     Assignment(typ:, location:, kind:, pattern:, annotation:, value:) ->
@@ -2919,6 +2937,17 @@ fn substitute_statement(
         expression: substitute_expression(c, rename, expression),
       )
   }
+}
+
+fn substitute_use_pattern(
+  c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
+  use_pattern: UsePattern,
+) -> UsePattern {
+  let pattern = substitute_pattern(c, rename, use_pattern.pattern)
+  let annotation =
+    option.map(use_pattern.annotation, substitute_annotation(c, rename, _))
+  UsePattern(pattern:, annotation:)
 }
 
 fn substitute_expression(
@@ -2960,23 +2989,24 @@ fn substitute_expression(
         location:,
         statements: list.map(statements, substitute_statement(c, rename, _)),
       )
-    Panic(typ:, location:, value:) ->
+    Panic(typ:, location:, message:) ->
       Panic(
         typ: substitute_type(c, rename, typ),
         location:,
-        value: option.map(value, substitute_expression(c, rename, _)),
+        message: option.map(message, substitute_expression(c, rename, _)),
       )
-    Todo(typ:, location:, value:) ->
+    Todo(typ:, location:, message:) ->
       Todo(
         typ: substitute_type(c, rename, typ),
         location:,
-        value: option.map(value, substitute_expression(c, rename, _)),
+        message: option.map(message, substitute_expression(c, rename, _)),
       )
-    Echo(typ:, location:, value:) ->
+    Echo(typ:, location:, expression:, message:) ->
       Echo(
         typ: substitute_type(c, rename, typ),
         location:,
-        value: option.map(value, substitute_expression(c, rename, _)),
+        expression: option.map(expression, substitute_expression(c, rename, _)),
+        message: option.map(message, substitute_expression(c, rename, _)),
       )
     Tuple(typ:, location:, elements:) ->
       Tuple(
@@ -2991,7 +3021,7 @@ fn substitute_expression(
         elements: list.map(elements, substitute_expression(c, rename, _)),
         rest: option.map(rest, substitute_expression(c, rename, _)),
       )
-    Fn(typ:, location:, parameters:, return:, body:) ->
+    Fn(typ:, location:, parameters:, return_annotation:, body:) ->
       Fn(
         typ: substitute_type(c, rename, typ),
         location:,
@@ -3000,7 +3030,11 @@ fn substitute_expression(
           rename,
           _,
         )),
-        return: option.map(return, substitute_annotation(c, rename, _)),
+        return_annotation: option.map(return_annotation, substitute_annotation(
+          c,
+          rename,
+          _,
+        )),
         body: list.map(body, substitute_statement(c, rename, _)),
       )
     RecordUpdate(
@@ -3029,13 +3063,21 @@ fn substitute_expression(
           |> result.map_error(substitute_type(c, rename, _))
         }),
       )
-    FieldAccess(typ:, location:, container:, module:, variant:, label:, index:) ->
+    FieldAccess(
+      typ:,
+      location:,
+      container:,
+      module:,
+      constructor:,
+      label:,
+      index:,
+    ) ->
       FieldAccess(
         typ: substitute_type(c, rename, typ),
         location:,
         container: substitute_expression(c, rename, container),
         module:,
-        variant:,
+        constructor:,
         label:,
         index:,
       )
@@ -3143,11 +3185,11 @@ fn substitute_pattern(
       PatternDiscard(typ: substitute_type(c, rename, typ), location:, name:)
     PatternVariable(typ:, location:, name:) ->
       PatternVariable(typ: substitute_type(c, rename, typ), location:, name:)
-    PatternTuple(typ:, location:, elems:) ->
+    PatternTuple(typ:, location:, elements:) ->
       PatternTuple(
         typ: substitute_type(c, rename, typ),
         location:,
-        elems: list.map(elems, substitute_pattern(c, rename, _)),
+        elements: list.map(elements, substitute_pattern(c, rename, _)),
       )
     PatternList(typ:, location:, elements:, tail:) ->
       PatternList(
@@ -3163,13 +3205,13 @@ fn substitute_pattern(
         pattern: substitute_pattern(c, rename, pattern),
         name:,
       )
-    PatternConcatenate(typ:, location:, prefix:, prefix_name:, suffix_name:) ->
+    PatternConcatenate(typ:, location:, prefix:, prefix_name:, rest_name:) ->
       PatternConcatenate(
         typ: substitute_type(c, rename, typ),
         location:,
         prefix:,
         prefix_name:,
-        suffix_name:,
+        rest_name:,
       )
     PatternBitString(typ:, location:, segments:) ->
       PatternBitString(
@@ -3186,17 +3228,17 @@ fn substitute_pattern(
           )
         }),
       )
-    PatternConstructor(
+    PatternVariant(
       typ:,
       location:,
       module:,
       constructor:,
       arguments:,
-      ordered_arguments:,
-      with_module:,
       with_spread:,
+      resolved_module:,
+      ordered_arguments:,
     ) ->
-      PatternConstructor(
+      PatternVariant(
         typ: substitute_type(c, rename, typ),
         location:,
         module:,
@@ -3205,12 +3247,12 @@ fn substitute_pattern(
           arguments,
           map_field(_, substitute_pattern(c, rename, _)),
         ),
+        with_spread:,
+        resolved_module:,
         ordered_arguments: list.map(
           ordered_arguments,
           map_field(_, substitute_pattern(c, rename, _)),
         ),
-        with_module:,
-        with_spread:,
       )
   }
 }

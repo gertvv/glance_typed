@@ -28,7 +28,9 @@ fn yaml_list(items: List(a), convert: fn(a) -> cymbal.Yaml) -> cymbal.Yaml {
 }
 
 fn yaml_is_empty(value: cymbal.Yaml) -> Bool {
-  value == cymbal.array([]) || value == cymbal.block([])
+  value == cymbal.array([])
+  || value == cymbal.block([])
+  || value == cymbal.string("")
 }
 
 fn yaml_block(entries: List(#(String, cymbal.Yaml))) -> cymbal.Yaml {
@@ -161,7 +163,7 @@ fn statement_to_yaml(statement: typed.Statement) -> cymbal.Yaml {
   case statement {
     typed.Use(typ:, patterns:, function:, ..) ->
       typed_node("use", typ, [
-        #("patterns", yaml_list(patterns, pattern_to_yaml)),
+        #("patterns", yaml_list(patterns, use_pattern_to_yaml)),
         #("function", expression_to_yaml(function)),
       ])
     typed.Assignment(typ:, kind:, pattern:, annotation:, value:, ..) ->
@@ -169,14 +171,16 @@ fn statement_to_yaml(statement: typed.Statement) -> cymbal.Yaml {
         "assignment",
         typ,
         [
-          Some(#(
-            "assignment_kind",
-            case kind {
-              typed.Let -> "let"
-              typed.LetAssert -> "let_assert"
-            }
-              |> cymbal.string,
-          )),
+          Some(
+            #("assignment_kind", case kind {
+              typed.Let -> cymbal.string("let")
+              typed.LetAssert(None) -> cymbal.string("let_assert")
+              typed.LetAssert(Some(message)) ->
+                typed_node("let_assert", message.typ, [
+                  #("message", expression_to_yaml(message)),
+                ])
+            }),
+          ),
           Some(#("pattern", pattern_to_yaml(pattern))),
           option.map(annotation, fn(annotation) {
             #("annotation", annotation_to_yaml(annotation))
@@ -199,6 +203,18 @@ fn statement_to_yaml(statement: typed.Statement) -> cymbal.Yaml {
       )
     typed.Expression(expression:, ..) -> expression_to_yaml(expression)
   }
+}
+
+fn use_pattern_to_yaml(use_pattern: typed.UsePattern) -> cymbal.Yaml {
+  yaml_block(
+    [
+      Some(#("pattern", pattern_to_yaml(use_pattern.pattern))),
+      option.map(use_pattern.annotation, fn(annotation) {
+        #("annotation", annotation_to_yaml(annotation))
+      }),
+    ]
+    |> option.values,
+  )
 }
 
 fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
@@ -229,21 +245,32 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
       typed_node("block", typ, [
         #("statements", yaml_list(statements, statement_to_yaml)),
       ])
-    typed.Panic(typ:, value:, ..) ->
-      typed_node("panic", typ, case value {
+    typed.Panic(typ:, message:, ..) ->
+      typed_node("panic", typ, case message {
         Some(value) -> [#("value", expression_to_yaml(value))]
         None -> []
       })
-    typed.Todo(typ:, value:, ..) ->
-      typed_node("todo", typ, case value {
+    typed.Todo(typ:, message:, ..) ->
+      typed_node("todo", typ, case message {
         Some(value) -> [#("value", expression_to_yaml(value))]
         None -> []
       })
-    typed.Echo(typ:, value:, ..) ->
-      typed_node("echo", typ, case value {
-        Some(value) -> [#("value", expression_to_yaml(value))]
-        None -> []
-      })
+    typed.Echo(typ:, expression:, message:, ..) ->
+      typed_node(
+        "echo",
+        typ,
+        [
+          case expression {
+            Some(e) -> Some(#("expression", expression_to_yaml(e)))
+            None -> None
+          },
+          case message {
+            Some(m) -> Some(#("message", expression_to_yaml(m)))
+            None -> None
+          },
+        ]
+          |> option.values,
+      )
     typed.Tuple(typ:, elements:, ..) ->
       typed_node("tuple", typ, [
         #("elements", yaml_list(elements, expression_to_yaml)),
@@ -256,7 +283,7 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
           None -> []
         }
       ])
-    typed.Fn(typ:, parameters:, return:, body:, ..) ->
+    typed.Fn(typ:, parameters:, return_annotation:, body:, ..) ->
       typed_node(
         "fn",
         typ,
@@ -265,7 +292,7 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
             "parameters",
             yaml_list(parameters, function_parameter_to_yaml),
           )),
-          option.map(return, fn(return) {
+          option.map(return_annotation, fn(return) {
             #("return", annotation_to_yaml(return))
           }),
           Some(#("body", yaml_list(body, statement_to_yaml))),
@@ -294,11 +321,19 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
           }),
         ),
       ])
-    typed.FieldAccess(typ:, container:, module:, variant:, label:, index:, ..) ->
+    typed.FieldAccess(
+      typ:,
+      container:,
+      module:,
+      constructor:,
+      label:,
+      index:,
+      ..,
+    ) ->
       typed_node("field_access", typ, [
         #("container", expression_to_yaml(container)),
         #("module", cymbal.string(module)),
-        #("variant", cymbal.string(variant)),
+        #("variant", cymbal.string(constructor)),
         #("label", cymbal.string(label)),
         #("index", cymbal.int(index)),
       ])
@@ -447,9 +482,9 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
       typed_node("discard_pattern", typ, [#("name", cymbal.string(name))])
     typed.PatternVariable(typ:, name:, ..) ->
       typed_node("variable_pattern", typ, [#("name", cymbal.string(name))])
-    typed.PatternTuple(typ:, elems:, ..) ->
+    typed.PatternTuple(typ:, elements:, ..) ->
       typed_node("tuple_pattern", typ, [
-        #("elements", yaml_list(elems, pattern_to_yaml)),
+        #("elements", yaml_list(elements, pattern_to_yaml)),
       ])
     typed.PatternList(typ:, elements:, tail:, ..) ->
       typed_node(
@@ -466,7 +501,7 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
         #("name", cymbal.string(name)),
         #("pattern", pattern_to_yaml(pattern)),
       ])
-    typed.PatternConcatenate(typ:, prefix:, prefix_name:, suffix_name:, ..) ->
+    typed.PatternConcatenate(typ:, prefix:, prefix_name:, rest_name:, ..) ->
       typed_node(
         "concatenate_pattern",
         typ,
@@ -475,7 +510,7 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
           option.map(prefix_name, fn(name) {
             #("prefix_name", assignment_name_to_yaml(name))
           }),
-          Some(#("suffix_name", assignment_name_to_yaml(suffix_name))),
+          Some(#("suffix_name", assignment_name_to_yaml(rest_name))),
         ]
           |> option.values,
       )
@@ -497,28 +532,31 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
           }),
         ),
       ])
-    typed.PatternConstructor(
+    typed.PatternVariant(
       typ:,
       module:,
       constructor:,
-      ordered_arguments:,
-      with_module:,
       with_spread:,
+      resolved_module:,
+      ordered_arguments:,
       ..,
     ) ->
       typed_node("constructor_pattern", typ, [
-        #("module", cymbal.string(module)),
+        #("module", case module {
+          Some(m) -> cymbal.string(m)
+          None -> cymbal.string("")
+        }),
         #("constructor", cymbal.string(constructor)),
+        #("with_spread", cymbal.bool(with_spread)),
         #(
-          "arguments",
+          "ordered_arguments",
           yaml_list(ordered_arguments, field_to_yaml(
             _,
             "pattern",
             pattern_to_yaml,
           )),
         ),
-        #("with_module", cymbal.bool(with_module)),
-        #("with_spread", cymbal.bool(with_spread)),
+        #("resolved_module", cymbal.string(resolved_module)),
       ])
   }
 }

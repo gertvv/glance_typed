@@ -40,7 +40,6 @@ functions:
           tail:
             kind: discard_pattern
             type: "gleam.List(gleam.Int)"
-            name: 
       body:
         kind: local_variable
         type: "gleam.Int"

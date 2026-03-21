@@ -25,15 +25,14 @@ functions:
       -
         - kind: constructor_pattern
           type: "gleam/option.Option(gleam.Int)"
-          module: "gleam/option"
           constructor: Some
-          arguments:
+          with_spread: false
+          ordered_arguments:
           - pattern:
               kind: variable_pattern
               type: "gleam.Int"
               name: n
-          with_module: false
-          with_spread: false
+          resolved_module: "gleam/option"
       body:
         kind: call
         type: "gleam/option.Option(gleam.Int)"
@@ -58,10 +57,9 @@ functions:
       -
         - kind: constructor_pattern
           type: "gleam/option.Option(gleam.Int)"
-          module: "gleam/option"
           constructor: None
-          with_module: false
           with_spread: false
+          resolved_module: "gleam/option"
       body:
         kind: function
         type: "gleam/option.Option(gleam.Int)"

@@ -149,6 +149,8 @@ pub fn imported_function_call_test() {
 }
 
 pub fn imported_constructor_pattern_test() {
+  // TODO None -> None is being labeled as "function"
+  // maybe it should be "constant" or something else?
   infer_with(
     option_dependencies(),
     "
