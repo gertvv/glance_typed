@@ -206,8 +206,7 @@ pub type Expression {
   Fn(
     typ: Type,
     location: Span,
-    // TODO FnParameter (no labels)
-    parameters: List(FunctionParameter),
+    parameters: List(FnParameter),
     return_annotation: Option(Annotation),
     body: List(Statement),
   )
@@ -307,6 +306,10 @@ pub type FunctionParameter {
   )
 }
 
+pub type FnParameter {
+  FnParameter(typ: Type, name: AssignmentName, annotation: Option(Annotation))
+}
+
 pub type AssignmentName {
   Named(value: String)
   Discarded(value: String)
@@ -375,7 +378,9 @@ pub type Variant {
 }
 
 pub type Field(t) {
-  Field(label: Option(String), item: t)
+  LabelledField(label: String, label_location: Span, item: t)
+  ShorthandField(label: String, location: Span, item: t)
+  UnlabelledField(item: t)
 }
 
 pub type Type {
@@ -638,10 +643,7 @@ pub fn infer_module(
         fun.return,
       ))
 
-      let #(c, return_type) = case return {
-        Some(x) -> #(c, x.typ)
-        None -> new_type_var_ref(c)
-      }
+      let #(c, return_type) = annotation_type_or_new(c, return)
 
       let param_types = list.map(parameters, fn(param) { param.typ })
       let param_labels = list.map(parameters, fn(f) { f.label })
@@ -924,13 +926,11 @@ fn infer_constant(
     g.Private -> Private
   }
 
-  use #(c, annotation) <- result.map(case con.annotation {
-    Some(anno) -> {
-      use #(c, anno) <- result.map(do_infer_annotation(c, dict.new(), anno))
-      #(c, Some(anno))
-    }
-    None -> Ok(#(c, None))
-  })
+  use #(c, annotation) <- result.map(infer_optional_annotation(
+    c,
+    dict.new(),
+    con.annotation,
+  ))
 
   let poly = generalise(c, value.typ)
 
@@ -957,10 +957,7 @@ fn infer_function(
     fun.return,
   ))
 
-  let #(c, return_type) = case return {
-    Some(x) -> #(c, x.typ)
-    None -> new_type_var_ref(c)
-  }
+  let #(c, return_type) = annotation_type_or_new(c, return)
 
   // put params into local env
   let n =
@@ -1106,18 +1103,18 @@ fn infer_variant(
     list.try_fold(variant.fields, #(c, []), fn(acc, field) {
       let #(c, fields) = acc
       use #(c, annotation) <- result.map(do_infer_annotation(c, n, field.item))
-      let label = case field {
-        g.LabelledVariantField(_, label) -> Some(label)
-        g.UnlabelledVariantField(_) -> None
+      let field = case field {
+        g.LabelledVariantField(_, label) ->
+          LabelledField(label, Span(0, 0), annotation)
+        g.UnlabelledVariantField(_) -> UnlabelledField(annotation)
       }
-      let field = Field(label, annotation)
       #(c, [field, ..fields])
     }),
   )
   let fields = list.reverse(fields)
 
-  let types = list.map(fields, fn(f) { f.item.typ })
-  let labels = list.map(fields, fn(f) { f.label })
+  let types = list.map(fields, fn(f) { field_item(f).typ })
+  let labels = list.map(fields, fn(f) { field_label(f) })
 
   // handle 0 parameter variants are not functions
   let #(c, typ) = case types {
@@ -1149,31 +1146,8 @@ fn infer_function_parameters(
   parameters: List(g.FunctionParameter),
   return: Option(g.Type),
 ) -> Result(#(Context, List(FunctionParameter), Option(Annotation)), Error) {
-  // find type variables used in the function's parameters
-  let vars =
-    list.flat_map(parameters, fn(param) {
-      case param.type_ {
-        Some(typ) -> find_vars_in_type(typ)
-        None -> []
-      }
-    })
-
-  // also look for varaibles in the return type
-  let vars = case return {
-    Some(ret) -> list.append(find_vars_in_type(ret), vars)
-    None -> vars
-  }
-
-  let vars = list.unique(vars)
-
-  // create an env for the type variables
   let #(c, type_env) =
-    list.fold(vars, #(c, dict.new()), fn(acc, name) {
-      let #(c, n) = acc
-      let #(c, typ) = new_type_var_ref(c)
-      let n = dict.insert(n, name, typ)
-      #(c, n)
-    })
+    build_type_env(c, list.map(parameters, fn(p) { p.type_ }), return)
 
   // create type vars for parameters
   use #(c, params) <- result.try(
@@ -1182,23 +1156,15 @@ fn infer_function_parameters(
 
       let label = param.label
 
-      let name = case param.name {
-        g.Named(s) -> Named(s)
-        g.Discarded(s) -> Discarded(s)
-      }
+      let name = convert_assignment_name(param.name)
 
-      use #(c, annotation) <- result.map(case param.type_ {
-        Some(typ) -> {
-          use #(c, anno) <- result.map(do_infer_annotation(c, type_env, typ))
-          #(c, Some(anno))
-        }
-        None -> Ok(#(c, None))
-      })
+      use #(c, annotation) <- result.map(infer_optional_annotation(
+        c,
+        type_env,
+        param.type_,
+      ))
 
-      let #(c, typ) = case annotation {
-        Some(a) -> #(c, a.typ)
-        None -> new_type_var_ref(c)
-      }
+      let #(c, typ) = annotation_type_or_new(c, annotation)
 
       #(c, [FunctionParameter(typ, label, name, annotation), ..param_types])
     }),
@@ -1206,15 +1172,48 @@ fn infer_function_parameters(
   let params = list.reverse(params)
 
   // handle function return type
-  use #(c, return) <- result.map(case return {
+  use #(c, return) <- result.map(infer_optional_annotation(c, type_env, return))
+
+  #(c, params, return)
+}
+
+fn infer_optional_annotation(
+  c: Context,
+  n: TypeEnv,
+  typ: Option(g.Type),
+) -> Result(#(Context, Option(Annotation)), Error) {
+  case typ {
     Some(typ) -> {
-      use #(c, anno) <- result.map(do_infer_annotation(c, type_env, typ))
+      use #(c, anno) <- result.map(do_infer_annotation(c, n, typ))
       #(c, Some(anno))
     }
     None -> Ok(#(c, None))
-  })
+  }
+}
 
-  #(c, params, return)
+fn build_type_env(
+  c: Context,
+  param_types: List(Option(g.Type)),
+  return_type: Option(g.Type),
+) -> #(Context, Dict(String, Type)) {
+  let vars =
+    list.flat_map(param_types, fn(t) {
+      case t {
+        Some(typ) -> find_vars_in_type(typ)
+        None -> []
+      }
+    })
+  let vars = case return_type {
+    Some(ret) -> list.append(find_vars_in_type(ret), vars)
+    None -> vars
+  }
+  let vars = list.unique(vars)
+  list.fold(vars, #(c, dict.new()), fn(acc, name) {
+    let #(c, n) = acc
+    let #(c, typ) = new_type_var_ref(c)
+    let n = dict.insert(n, name, typ)
+    #(c, n)
+  })
 }
 
 fn do_infer_annotation(
@@ -1324,7 +1323,7 @@ fn add_module_interface(c: Context, m: ModuleInterface) -> Context {
           m.name,
           variant.name,
           variant.typ,
-          list.map(variant.fields, fn(f) { f.label }),
+          list.map(variant.fields, fn(f) { field_label(f) }),
         ),
       )
     })
@@ -1471,6 +1470,20 @@ fn new_type_var_ref(c: Context) {
   let type_vars = dict.insert(c.type_vars, ref, Unbound)
   let typ = VariableType(ref)
   #(Context(..c, type_vars: type_vars, type_uid: c.type_uid + 1), typ)
+}
+
+fn annotation_type_or_new(c: Context, annotation: Option(Annotation)) {
+  case annotation {
+    Some(a) -> #(c, a.typ)
+    None -> new_type_var_ref(c)
+  }
+}
+
+fn convert_assignment_name(name: g.AssignmentName) -> AssignmentName {
+  case name {
+    g.Named(s) -> Named(s)
+    g.Discarded(s) -> Discarded(s)
+  }
 }
 
 fn infer_pattern(
@@ -1663,20 +1676,19 @@ fn infer_pattern(
         list.try_fold(arguments, #(c, n, []), fn(acc, arg) {
           let #(c, n, arguments) = acc
 
-          let #(item, label) = case arg {
-            g.LabelledField(label: label, item: item, ..) -> #(
-              item,
-              Some(label),
-            )
-            g.ShorthandField(label: label, location:) -> #(
+          let #(item, make_field) = case arg {
+            g.LabelledField(label:, label_location:, item:) -> #(item, fn(x) {
+              LabelledField(label, label_location, x)
+            })
+            g.ShorthandField(label:, location:) -> #(
               g.PatternVariable(location, label),
-              Some(label),
+              fn(x) { ShorthandField(label, location, x) },
             )
-            g.UnlabelledField(item) -> #(item, None)
+            g.UnlabelledField(item) -> #(item, fn(x) { UnlabelledField(x) })
           }
 
           use #(c, n, arg2) <- result.map(infer_pattern(c, n, item))
-          #(c, n, [Field(label, arg2), ..arguments])
+          #(c, n, [make_field(arg2), ..arguments])
         }),
       )
       let arguments = list.reverse(arguments)
@@ -1692,7 +1704,7 @@ fn infer_pattern(
                 Some(opt) -> #(c, opt)
                 None -> {
                   let #(c, typ) = new_type_var_ref(c)
-                  #(c, Field(None, PatternDiscard(typ, location, "")))
+                  #(c, UnlabelledField(PatternDiscard(typ, location, "")))
                 }
               }
               #(c, [opt, ..opts])
@@ -1704,7 +1716,7 @@ fn infer_pattern(
           #(c, args)
         }
       })
-      let arg_types = list.map(ordered_arguments, fn(x) { x.item.typ })
+      let arg_types = list.map(ordered_arguments, fn(x) { field_item(x).typ })
 
       // handle 0 parameter variants are not functions
       use #(c, typ) <- result.map(case arg_types {
@@ -1908,9 +1920,9 @@ fn do_match_labels(
         _ -> Error(WrongArity(context_location(c), lens.0, lens.1))
       }
     [p, ..p_rest] ->
-      extract_matching(args, fn(a) { a.label == p })
+      extract_matching(args, fn(a) { field_label(a) == p })
       |> result.try_recover(fn(_) {
-        extract_matching(args, fn(a) { a.label == None })
+        extract_matching(args, fn(a) { field_label(a) == None })
       })
       |> result.map_error(fn(_) {
         case p {
@@ -1934,7 +1946,7 @@ fn match_labels_optional(
   case params {
     [] -> []
     [p, ..p_rest] ->
-      case extract_matching(args, fn(a) { a.label == p }) {
+      case extract_matching(args, fn(a) { field_label(a) == p }) {
         Ok(#(a, a_rest)) -> [Some(a), ..match_labels_optional(a_rest, p_rest)]
         Error(_) -> [None, ..match_labels_optional(args, p_rest)]
       }
@@ -2110,7 +2122,8 @@ fn infer_expression(
       )
       let updated_fields = list.reverse(updated_fields)
 
-      let fields = list.map(updated_fields, fn(x) { Field(Some(x.0), x.1) })
+      let fields =
+        list.map(updated_fields, fn(x) { LabelledField(x.0, Span(0, 0), x.1) })
       let ordered_fields = match_labels_optional(fields, labels)
       use ordered_fields <- result.try(
         list.strict_zip(ordered_fields, constructor_args)
@@ -2129,7 +2142,7 @@ fn infer_expression(
           let #(given, expected) = x
           use #(c, result) <- result.map(case given {
             Some(e) -> {
-              use c <- result.map(unify(c, e.item.typ, expected))
+              use c <- result.map(unify(c, field_item(e).typ, expected))
               #(c, Ok(e))
             }
             None -> Ok(#(c, Error(expected)))
@@ -2188,12 +2201,12 @@ fn infer_expression(
         let field =
           variant.fields
           |> list.index_map(fn(x, i) { #(x, i) })
-          |> list.find(fn(x) { { x.0 }.label == Some(label) })
+          |> list.find(fn(x) { field_label(x.0) == Some(label) })
           |> result.replace_error(FieldNotFound(context_location(c), label))
         use #(field, index) <- result.try(field)
 
         // create a getter function type
-        let getter = FunctionType([typ.typ], field.item.typ)
+        let getter = FunctionType([typ.typ], field_item(field).typ)
         let getter = Poly(typ.vars, getter)
         let #(c, getter) = instantiate(c, getter)
 
@@ -2241,18 +2254,13 @@ fn infer_expression(
 
       let args =
         list.map(arguments, fn(arg) {
-          let #(label, arg) = case arg {
-            g.LabelledField(label: label, item: item, ..) -> #(
-              Some(label),
-              item,
-            )
-            g.ShorthandField(label: label, location:) -> #(
-              Some(label),
-              g.Variable(location, label),
-            )
-            g.UnlabelledField(item) -> #(None, item)
+          case arg {
+            g.LabelledField(label:, label_location:, item:) ->
+              LabelledField(label, label_location, item)
+            g.ShorthandField(label:, location:) ->
+              ShorthandField(label, location, g.Variable(location, label))
+            g.UnlabelledField(item) -> UnlabelledField(item)
           }
-          Field(label, arg)
         })
 
       use args <- result.try(match_labels(c, args, labels))
@@ -2282,7 +2290,8 @@ fn infer_expression(
           let #(type_hint, field_arg) = type_hint_and_field
 
           // give type hint when arg is a fn
-          let result = case field_arg.item {
+          let field_arg_item = field_item(field_arg)
+          let result = case field_arg_item {
             g.Fn(location:, arguments:, return_annotation:, body:) ->
               infer_fn(
                 c,
@@ -2293,7 +2302,7 @@ fn infer_expression(
                 body,
                 type_hint,
               )
-            _ -> infer_expression(c, n, field_arg.item)
+            _ -> infer_expression(c, n, field_arg_item)
           }
           use #(c, inferred_arg) <- result.try(result)
 
@@ -2302,14 +2311,20 @@ fn infer_expression(
             None -> Ok(c)
           })
 
-          let field_with_inferred = Field(field_arg.label, inferred_arg)
+          let field_with_inferred = case field_arg {
+            LabelledField(label, label_location, _) ->
+              LabelledField(label, label_location, inferred_arg)
+            ShorthandField(label, location, _) ->
+              ShorthandField(label, location, inferred_arg)
+            UnlabelledField(_) -> UnlabelledField(inferred_arg)
+          }
 
           #(c, [field_with_inferred, ..args])
         }),
       )
       let args = list.reverse(args)
-      let arg_types = list.map(args, fn(field) { field.item.typ })
-      let ordered_arguments = list.map(args, fn(field) { field.item })
+      let arg_types = list.map(args, fn(field) { field_item(field).typ })
+      let ordered_arguments = list.map(args, fn(field) { field_item(field) })
       // unify the function type with the types of args
       let #(c, typ) = new_type_var_ref(c)
       use c <- result.map(unify(c, fun.typ, FunctionType(arg_types, typ)))
@@ -2356,7 +2371,6 @@ fn infer_expression(
           use #(c, options, typ) <- result.try(
             list.try_fold(options, #(c, [], None), fn(acc, option) {
               let #(c, options, typ) = acc
-              // TODO handle all options
               use #(c, option, option_type) <- result.try(case option {
                 g.BigOption -> Ok(#(c, BigOption, None))
                 g.BytesOption -> Ok(#(c, BytesOption, Some(bit_array_type)))
@@ -2622,18 +2636,13 @@ fn infer_fn(
   body: List(g.Statement),
   hint: Option(Type),
 ) -> Result(#(Context, Expression), Error) {
-  // map parameters to FunctionParameter for code reuse
-  let parameters =
-    list.map(parameters, fn(p) { g.FunctionParameter(None, p.name, p.type_) })
+  use #(c, parameters, return_annotation) <- result.try(infer_fn_parameters(
+    c,
+    parameters,
+    return_annotation,
+  ))
 
-  use #(c, parameters, return_annotation) <- result.try(
-    infer_function_parameters(c, parameters, return_annotation),
-  )
-
-  let #(c, return_type) = case return_annotation {
-    Some(x) -> #(c, x.typ)
-    None -> new_type_var_ref(c)
-  }
+  let #(c, return_type) = annotation_type_or_new(c, return_annotation)
 
   // compute function type
   let parameter_types = list.map(parameters, fn(x) { x.typ })
@@ -2665,6 +2674,40 @@ fn infer_fn(
 
   let fun = Fn(typ:, location:, parameters:, return_annotation:, body:)
   #(c, fun)
+}
+
+fn infer_fn_parameters(
+  c: Context,
+  parameters: List(g.FnParameter),
+  return: Option(g.Type),
+) -> Result(#(Context, List(FnParameter), Option(Annotation)), Error) {
+  let #(c, type_env) =
+    build_type_env(c, list.map(parameters, fn(p) { p.type_ }), return)
+
+  // create type vars for parameters
+  use #(c, params) <- result.try(
+    list.try_fold(parameters, #(c, []), fn(acc, param) {
+      let #(c, param_types) = acc
+
+      let name = convert_assignment_name(param.name)
+
+      use #(c, annotation) <- result.map(infer_optional_annotation(
+        c,
+        type_env,
+        param.type_,
+      ))
+
+      let #(c, typ) = annotation_type_or_new(c, annotation)
+
+      #(c, [FnParameter(typ, name, annotation), ..param_types])
+    }),
+  )
+  let params = list.reverse(params)
+
+  // handle function return type
+  use #(c, return) <- result.map(infer_optional_annotation(c, type_env, return))
+
+  #(c, params, return)
 }
 
 type PolyEnv =
@@ -2901,6 +2944,18 @@ fn substitute_function_parameter(
   )
 }
 
+fn substitute_fn_parameter(
+  c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
+  param: FnParameter,
+) -> FnParameter {
+  FnParameter(
+    ..param,
+    typ: substitute_type(c, rename, param.typ),
+    annotation: option.map(param.annotation, substitute_annotation(c, rename, _)),
+  )
+}
+
 fn substitute_statement(
   c: Context,
   rename: Dict(TypeVarId, TypeVarId),
@@ -3025,11 +3080,7 @@ fn substitute_expression(
       Fn(
         typ: substitute_type(c, rename, typ),
         location:,
-        parameters: list.map(parameters, substitute_function_parameter(
-          c,
-          rename,
-          _,
-        )),
+        parameters: list.map(parameters, substitute_fn_parameter(c, rename, _)),
         return_annotation: option.map(return_annotation, substitute_annotation(
           c,
           rename,
@@ -3322,7 +3373,29 @@ fn substitute_annotation(
 }
 
 fn map_field(field: Field(a), func: fn(a) -> b) -> Field(b) {
-  Field(..field, item: func(field.item))
+  case field {
+    LabelledField(label, label_location, item) ->
+      LabelledField(label, label_location, func(item))
+    ShorthandField(label, location, item) ->
+      ShorthandField(label, location, func(item))
+    UnlabelledField(item) -> UnlabelledField(func(item))
+  }
+}
+
+fn field_label(field: Field(a)) -> Option(String) {
+  case field {
+    LabelledField(label, ..) -> Some(label)
+    ShorthandField(label, ..) -> Some(label)
+    UnlabelledField(..) -> None
+  }
+}
+
+fn field_item(field: Field(a)) -> a {
+  case field {
+    LabelledField(_, _, item) -> item
+    ShorthandField(_, _, item) -> item
+    UnlabelledField(item) -> item
+  }
 }
 
 fn map_definition(def: Definition(a), func: fn(a) -> b) -> Definition(b) {

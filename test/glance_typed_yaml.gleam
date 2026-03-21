@@ -288,10 +288,7 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
         "fn",
         typ,
         [
-          Some(#(
-            "parameters",
-            yaml_list(parameters, function_parameter_to_yaml),
-          )),
+          Some(#("parameters", yaml_list(parameters, fn_parameter_to_yaml))),
           option.map(return_annotation, fn(return) {
             #("return", annotation_to_yaml(return))
           }),
@@ -417,10 +414,20 @@ fn field_to_yaml(
   item_name: String,
   convert: fn(a) -> cymbal.Yaml,
 ) -> cymbal.Yaml {
+  let label = case field {
+    typed.LabelledField(label, ..) -> Some(label)
+    typed.ShorthandField(label, ..) -> Some(label)
+    typed.UnlabelledField(..) -> None
+  }
+  let item = case field {
+    typed.LabelledField(_, _, item) -> item
+    typed.ShorthandField(_, _, item) -> item
+    typed.UnlabelledField(item) -> item
+  }
   yaml_block(
     [
-      option.map(field.label, fn(label) { #("label", cymbal.string(label)) }),
-      Some(#(item_name, convert(field.item))),
+      option.map(label, fn(l) { #("label", cymbal.string(l)) }),
+      Some(#(item_name, convert(item))),
     ]
     |> option.values,
   )
@@ -570,6 +577,20 @@ fn function_parameter_to_yaml(
     [
       Some(#("type", type_to_yaml(typ))),
       option.map(label, fn(label) { #("label", cymbal.string(label)) }),
+      Some(#("name", assignment_name_to_yaml(name))),
+      option.map(annotation, fn(annotation) {
+        #("annotation", annotation_to_yaml(annotation))
+      }),
+    ]
+    |> option.values,
+  )
+}
+
+fn fn_parameter_to_yaml(fn_parameter: typed.FnParameter) -> cymbal.Yaml {
+  let typed.FnParameter(typ:, name:, annotation:) = fn_parameter
+  yaml_block(
+    [
+      Some(#("type", type_to_yaml(typ))),
       Some(#("name", assignment_name_to_yaml(name))),
       option.map(annotation, fn(annotation) {
         #("annotation", annotation_to_yaml(annotation))
