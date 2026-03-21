@@ -18,7 +18,9 @@ types:
     type: "(0) fn(0) -> test.Foo(0)"
     fields:
     - label: value
-      annotation: a
+      annotation:
+        annotation: a
+        type: "0"
 functions:
 - name: main
   type: "() fn() -> gleam.Int"
@@ -65,11 +67,17 @@ functions:
   parameters:
   - type: "0"
     name: x
-    annotation: a
+    annotation:
+      annotation: a
+      type: "0"
   - type: "fn(0) -> 1"
     name: f
-    annotation: "fn(a) -> b"
-  return: b
+    annotation:
+      annotation: "fn(a) -> b"
+      type: "fn(0) -> 1"
+  return:
+    annotation: b
+    type: "1"
   body:
   - kind: call
     type: "1"

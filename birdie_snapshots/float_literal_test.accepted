@@ -1,0 +1,17 @@
+---
+version: 1.5.4
+title: float literal test
+file: ./test/glance_typed_test.gleam
+test_name: float_literal_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> gleam.Float"
+  publicity: public
+  body:
+  - kind: float_literal
+    type: "gleam.Float"
+    value: "1.0"
+

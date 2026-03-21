@@ -1,0 +1,26 @@
+---
+version: 1.5.4
+title: tuple literal test
+file: ./test/glance_typed_test.gleam
+test_name: tuple_literal_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> #(gleam.Int, gleam.Float, gleam.String)"
+  publicity: public
+  body:
+  - kind: tuple
+    type: "#(gleam.Int, gleam.Float, gleam.String)"
+    elements:
+    - kind: int_literal
+      type: "gleam.Int"
+      value: "1"
+    - kind: float_literal
+      type: "gleam.Float"
+      value: "1.0"
+    - kind: string_literal
+      type: "gleam.String"
+      value: a
+

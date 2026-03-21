@@ -18,7 +18,9 @@ types:
     type: "(0) fn(0) -> test.Foo(0)"
     fields:
     - label: value
-      annotation: a
+      annotation:
+        annotation: a
+        type: "0"
 functions:
 - name: get
   type: "() fn() -> gleam.Int"

@@ -1,0 +1,43 @@
+---
+version: 1.5.4
+title: custom type constructor test
+file: ./test/glance_typed_test.gleam
+test_name: custom_type_constructor_test
+---
+---
+name: test
+types:
+- name: Box
+  type: "(0) test.Box(0)"
+  publicity: public
+  opaque: false
+  parameters:
+  - a
+  variants:
+  - name: Box
+    type: "(0) fn(0) -> test.Box(0)"
+    fields:
+    - label: value
+      annotation:
+        annotation: a
+        type: "0"
+functions:
+- name: box
+  type: "(0) fn(0) -> test.Box(0)"
+  publicity: public
+  parameters:
+  - type: "0"
+    name: x
+  body:
+  - kind: call
+    type: "test.Box(0)"
+    function:
+      kind: function
+      type: "fn(0) -> test.Box(0)"
+      module: test
+      name: Box
+    arguments:
+    - kind: local_variable
+      type: "0"
+      name: x
+

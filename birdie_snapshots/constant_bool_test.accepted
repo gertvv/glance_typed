@@ -1,0 +1,18 @@
+---
+version: 1.5.4
+title: constant bool test
+file: ./test/glance_typed_test.gleam
+test_name: constant_bool_test
+---
+---
+name: test
+constants:
+- name: b
+  type: "() gleam.Bool"
+  publicity: public
+  value:
+    kind: function
+    type: "gleam.Bool"
+    module: gleam
+    name: True
+

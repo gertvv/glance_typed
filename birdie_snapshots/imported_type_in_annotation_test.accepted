@@ -1,0 +1,34 @@
+---
+version: 1.5.4
+title: imported type in annotation test
+file: ./test/glance_typed_test.gleam
+test_name: imported_type_in_annotation_test
+---
+---
+name: example
+functions:
+- name: wrap
+  type: "() fn(gleam.Int) -> gleam/option.Option(gleam.Int)"
+  publicity: public
+  parameters:
+  - type: "gleam.Int"
+    name: x
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  return:
+    annotation: "Option(Int)"
+    type: "gleam/option.Option(gleam.Int)"
+  body:
+  - kind: call
+    type: "gleam/option.Option(gleam.Int)"
+    function:
+      kind: function
+      type: "fn(gleam.Int) -> gleam/option.Option(gleam.Int)"
+      module: "gleam/option"
+      name: Some
+    arguments:
+    - kind: local_variable
+      type: "gleam.Int"
+      name: x
+

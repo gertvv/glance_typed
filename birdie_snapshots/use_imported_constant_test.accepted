@@ -1,0 +1,18 @@
+---
+version: 1.5.4
+title: use imported constant test
+file: ./test/glance_typed_test.gleam
+test_name: use_imported_constant_test
+---
+---
+name: example
+functions:
+- name: f
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  body:
+  - kind: constant
+    type: "gleam.Int"
+    module: mymod
+    name: answer
+

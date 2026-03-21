@@ -1,0 +1,66 @@
+---
+version: 1.5.4
+title: pattern bit string test
+file: ./test/glance_typed_test.gleam
+test_name: pattern_bit_string_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn(gleam.BitArray) -> gleam.Int"
+  publicity: public
+  parameters:
+  - type: "gleam.BitArray"
+    name: bits
+    annotation:
+      annotation: BitArray
+      type: "gleam.BitArray"
+  body:
+  - kind: case
+    type: "gleam.Int"
+    subjects:
+    - kind: local_variable
+      type: "gleam.BitArray"
+      name: bits
+    clauses:
+    - patterns:
+      -
+        - kind: bit_string_pattern
+          type: "gleam.BitArray"
+          segments:
+          - pattern:
+              kind: variable_pattern
+              type: "gleam.Int"
+              name: a
+          - pattern:
+              kind: variable_pattern
+              type: "gleam.Int"
+              name: b
+          - pattern:
+              kind: discard_pattern
+              type: "gleam.BitArray"
+              name: rest
+            options:
+            - bytes
+      body:
+        kind: binary_operator
+        type: "gleam.Int"
+        name: "+"
+        left:
+          kind: local_variable
+          type: "gleam.Int"
+          name: a
+        right:
+          kind: local_variable
+          type: "gleam.Int"
+          name: b
+    - patterns:
+      -
+        - kind: discard_pattern
+          type: "gleam.BitArray"
+      body:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "0"
+

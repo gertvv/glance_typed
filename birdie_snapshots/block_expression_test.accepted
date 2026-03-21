@@ -1,0 +1,31 @@
+---
+version: 1.5.4
+title: block expression test
+file: ./test/glance_typed_test.gleam
+test_name: block_expression_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  body:
+  - kind: block
+    type: "gleam.Int"
+    statements:
+    - kind: assignment
+      type: "gleam.Int"
+      assignment_kind: let
+      pattern:
+        kind: variable_pattern
+        type: "gleam.Int"
+        name: x
+      value:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "1"
+    - kind: local_variable
+      type: "gleam.Int"
+      name: x
+

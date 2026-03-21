@@ -651,7 +651,10 @@ fn publicity_to_yaml(publicity: typed.Publicity) -> cymbal.Yaml {
 }
 
 fn annotation_to_yaml(annotation: typed.Annotation) -> cymbal.Yaml {
-  cymbal.string(annotation_to_string(annotation))
+  yaml_block([
+    #("annotation", cymbal.string(annotation_to_string(annotation))),
+    #("type", type_to_yaml(annotation.typ)),
+  ])
 }
 
 fn annotation_to_string(annotation: typed.Annotation) -> String {

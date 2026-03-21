@@ -35,6 +35,48 @@ fn infer_yaml(source: String) -> String {
   glance_typed_yaml.module_to_string(infer(source))
 }
 
+fn prelude_deps() -> dict.Dict(String, typed.ModuleInterface) {
+  dict.from_list([#("gleam", typed.prelude_interface())])
+}
+
+fn infer_with_prelude(source: String) -> typed.Module {
+  infer_with(prelude_deps(), source, "test")
+}
+
+fn infer_yaml_with_prelude(source: String) -> String {
+  glance_typed_yaml.module_to_string(infer_with_prelude(source))
+}
+
+fn infer_error(source: String) -> typed.Error {
+  let assert Ok(parsed) = glance.module(source)
+  let assert Error(err) = typed.infer_module(dict.new(), parsed, "test")
+  err
+}
+
+fn infer_error_with_prelude(source: String) -> typed.Error {
+  let assert Ok(parsed) = glance.module(source)
+  let assert Error(err) = typed.infer_module(prelude_deps(), parsed, "test")
+  err
+}
+
+fn option_dependencies() -> dict.Dict(String, typed.ModuleInterface) {
+  let prelude = typed.prelude_interface()
+  let option_interface =
+    infer_interface(
+      dict.new(),
+      "
+      pub type Option(e) {
+        Some(e)
+        None
+      }
+
+      pub fn map(option: Option(a), f: fn(a) -> b) -> Option(b) { panic }
+      ",
+      "gleam/option",
+    )
+  dict.from_list([#("gleam", prelude), #("gleam/option", option_interface)])
+}
+
 pub fn recursive_function_test() {
   infer_yaml(
     "
@@ -114,25 +156,6 @@ pub fn type_alias_test() {
     ",
   )
   |> birdie.snap(title: "type alias test")
-}
-
-fn option_dependencies() -> dict.Dict(String, typed.ModuleInterface) {
-  let prelude = infer_interface(dict.new(), "pub type Int", "gleam")
-  let option_interface =
-    infer_interface(
-      dict.new(),
-      "
-      pub type Option(e) {
-        Some(e)
-        None
-      }
-
-      @external(erlang, \"option\", \"map\")
-      pub fn map(option: Option(a), f: fn(a) -> b) -> Option(b)
-      ",
-      "gleam/option",
-    )
-  dict.from_list([#("gleam", prelude), #("gleam/option", option_interface)])
 }
 
 pub fn field_access_test() {
@@ -249,4 +272,721 @@ pub fn imported_constructor_pattern_test() {
   )
   |> glance_typed_yaml.module_to_string
   |> birdie.snap(title: "imported constructor pattern test")
+}
+
+pub fn int_literal_test() {
+  infer_yaml("pub fn f() { 1 }")
+  |> birdie.snap(title: "int literal test")
+}
+
+pub fn float_literal_test() {
+  infer_yaml("pub fn f() { 1.0 }")
+  |> birdie.snap(title: "float literal test")
+}
+
+pub fn string_literal_test() {
+  infer_yaml("pub fn f() { \"hello\" }")
+  |> birdie.snap(title: "string literal test")
+}
+
+pub fn bool_literal_test() {
+  infer_yaml_with_prelude("pub fn f() { True }")
+  |> birdie.snap(title: "bool literal test")
+}
+
+pub fn tuple_literal_test() {
+  infer_yaml("pub fn f() { #(1, 1.0, \"a\") }")
+  |> birdie.snap(title: "tuple literal test")
+}
+
+pub fn bit_array_test() {
+  infer_yaml("pub fn f() { <<1, 2, 3>> }")
+  |> birdie.snap(title: "bit array test")
+}
+
+pub fn tuple_index_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn fst(t: #(Int, String)) { t.0 }
+    pub fn snd(t: #(Int, String)) { t.1 }
+    ",
+  )
+  |> birdie.snap(title: "tuple index test")
+}
+
+pub fn tuple_index_out_of_bounds_test() {
+  infer_error_with_prelude("pub fn f(t: #(Int, String)) { t.2 }")
+  |> typed.inspect_error
+  |> birdie.snap(title: "tuple index out of bounds test")
+}
+
+pub fn anonymous_function_test() {
+  infer_yaml("pub fn f() { fn(x) { x } }")
+  |> birdie.snap(title: "anonymous function test")
+}
+
+pub fn let_binding_test() {
+  infer_yaml(
+    "
+    pub fn f() {
+      let x = 1
+      x
+    }
+    ",
+  )
+  |> birdie.snap(title: "let binding test")
+}
+
+pub fn let_assert_test() {
+  infer_yaml(
+    "
+    type Wrapper(a) { Wrapper(value: a) }
+
+    pub fn unwrap(w: Wrapper(a)) {
+      let assert Wrapper(v) = w
+      v
+    }
+    ",
+  )
+  |> birdie.snap(title: "let assert test")
+}
+
+pub fn constant_int_test() {
+  infer_yaml("pub const x = 42")
+  |> birdie.snap(title: "constant int test")
+}
+
+pub fn constant_depends_on_constant_test() {
+  infer_yaml(
+    "
+    const a = 1
+    pub const b = a
+    ",
+  )
+  |> birdie.snap(title: "constant depends on constant test")
+}
+
+pub fn polymorphic_identity_test() {
+  infer_yaml("pub fn id(x) { x }")
+  |> birdie.snap(title: "polymorphic identity test")
+}
+
+pub fn polymorphic_apply_test() {
+  infer_yaml("pub fn apply(f, x) { f(x) }")
+  |> birdie.snap(title: "polymorphic apply test")
+}
+
+pub fn list_literal_test() {
+  infer_yaml("pub fn f() { [1, 2, 3] }")
+  |> birdie.snap(title: "list literal test")
+}
+
+pub fn list_spread_test() {
+  infer_yaml("pub fn f(xs) { [0, ..xs] }")
+  |> birdie.snap(title: "list spread test")
+}
+
+pub fn case_without_annotation_test() {
+  infer_yaml(
+    "
+    pub fn describe(x) {
+      case x {
+        0 -> \"zero\"
+        _ -> \"other\"
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "case without annotation test")
+}
+
+pub fn case_multi_subject_test() {
+  infer_yaml(
+    "
+    pub fn both_zero(a, b) {
+      case a, b {
+        0, 0 -> 1
+        _, _ -> 0
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "case multi subject test")
+}
+
+pub fn case_guard_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn is_positive(n: Int) {
+      case n {
+        x if x > 0 -> True
+        _ -> False
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "case guard test")
+}
+
+pub fn case_tuple_pattern_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn swap(t: #(Int, Bool)) {
+      case t {
+        #(n, b) -> #(b, n)
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "case tuple pattern test")
+}
+
+pub fn case_string_pattern_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn greet(name: String) {
+      case name {
+        \"world\" -> \"Hello, world!\"
+        _ -> \"Hi!\"
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "case string pattern test")
+}
+
+pub fn case_variable_pattern_test() {
+  infer_yaml(
+    "
+    pub fn double(x) {
+      case x {
+        n -> n + n
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "case variable pattern test")
+}
+
+pub fn custom_type_constructor_test() {
+  infer_yaml(
+    "
+    pub type Box(a) { Box(value: a) }
+
+    pub fn box(x) { Box(x) }
+    ",
+  )
+  |> birdie.snap(title: "custom type constructor test")
+}
+
+pub fn custom_type_pattern_match_test() {
+  infer_yaml(
+    "
+    pub type Box(a) { Box(value: a) }
+
+    pub fn unbox(b: Box(a)) {
+      case b {
+        Box(v) -> v
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "custom type pattern match test")
+}
+
+pub fn multi_variant_type_test() {
+  infer_yaml(
+    "
+    pub type Shape(a) {
+      Circle(radius: a)
+      Rectangle(width: a, height: a)
+    }
+    ",
+  )
+  |> birdie.snap(title: "multi variant type test")
+}
+
+pub fn record_update_test() {
+  infer_yaml(
+    "
+    pub type Point(a) { Point(x: a, y: a) }
+
+    pub fn reset_x(p: Point(a), new_x: a) { Point(..p, x: new_x) }
+    ",
+  )
+  |> birdie.snap(title: "record update test")
+}
+
+pub fn mutually_recursive_types_test() {
+  infer_yaml(
+    "
+    pub type Forest(a) { Forest(head: Tree(a))  EmptyForest }
+    pub type Tree(a) { Tree(value: a, children: Forest(a)) }
+    ",
+  )
+  |> birdie.snap(title: "mutually recursive types test")
+}
+
+pub fn mutual_recursion_test() {
+  infer_yaml(
+    "
+    pub fn count_even(n) {
+      case n {
+        0 -> 0
+        _ -> count_odd(n - 1)
+      }
+    }
+
+    pub fn count_odd(n) {
+      case n {
+        0 -> 1
+        _ -> count_even(n - 1)
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "mutual recursion test")
+}
+
+pub fn function_call_with_labels_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn add(x x: Int, to y: Int) -> Int { x + y }
+
+    pub fn f() { add(x: 1, to: 2) }
+    ",
+  )
+  |> birdie.snap(title: "function call with labels test")
+}
+
+pub fn nested_function_call_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn apply_twice(f: fn(Int) -> Int, x: Int) {
+      f(f(x))
+    }
+    ",
+  )
+  |> birdie.snap(title: "nested function call test")
+}
+
+pub fn type_alias_resolved_test() {
+  infer_yaml_with_prelude(
+    "
+    pub type Alias(a) = a
+
+    pub fn f(x: Alias(Int)) -> Int { x }
+    ",
+  )
+  |> birdie.snap(title: "type alias resolved test")
+}
+
+pub fn panic_test() {
+  infer_yaml_with_prelude("pub fn f() -> Int { panic }")
+  |> birdie.snap(title: "panic test")
+}
+
+pub fn todo_test() {
+  infer_yaml_with_prelude("pub fn f() -> Int { todo }")
+  |> birdie.snap(title: "todo test")
+}
+
+pub fn block_expression_test() {
+  infer_yaml(
+    "
+    pub fn f() {
+      {
+        let x = 1
+        x
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "block expression test")
+}
+
+pub fn imported_type_in_annotation_test() {
+  infer_with(
+    option_dependencies(),
+    "
+    import gleam/option.{type Option}
+
+    pub fn wrap(x: Int) -> Option(Int) {
+      option.Some(x)
+    }
+    ",
+    "example",
+  )
+  |> glance_typed_yaml.module_to_string
+  |> birdie.snap(title: "imported type in annotation test")
+}
+
+pub fn call_non_function_test() {
+  infer_error("pub fn f() { let x = 1  x(2) }")
+  |> typed.inspect_error
+  |> birdie.snap(title: "call non function test")
+}
+
+pub fn function_call_wrong_arity_test() {
+  infer_error(
+    "
+    pub fn id(x) { x }
+    pub fn f() { id(1, 2) }
+    ",
+  )
+  |> typed.inspect_error
+  |> birdie.snap(title: "function call wrong arity test")
+}
+
+pub fn unknown_variable_test() {
+  infer_error("pub fn f() { x }")
+  |> typed.inspect_error
+  |> birdie.snap(title: "unknown variable test")
+}
+
+pub fn unresolved_type_test() {
+  infer_error("pub fn f(x: Foo) { x }")
+  |> typed.inspect_error
+  |> birdie.snap(title: "unresolved type test")
+}
+
+pub fn incompatible_types_test() {
+  infer_error("pub fn f() { case 1 { 1 -> 1  _ -> \"str\" } }")
+  |> typed.inspect_error
+  |> birdie.snap(title: "incompatible types test")
+}
+
+pub fn type_annotation_mismatch_test() {
+  infer_error(
+    "
+    type A { A }
+    type B { B }
+    pub fn f(x: A) -> B { x }
+    ",
+  )
+  |> typed.inspect_error
+  |> birdie.snap(title: "type annotation mismatch test")
+}
+
+pub fn label_not_found_test() {
+  infer_error(
+    "
+    pub fn id(x) { x }
+    pub fn f() { id(y: 1) }
+    ",
+  )
+  |> typed.inspect_error
+  |> birdie.snap(title: "label not found test")
+}
+
+pub fn recursive_type_error_test() {
+  infer_error(
+    "
+    pub fn f(x) {
+      f(x(1))
+    }
+    ",
+  )
+  |> typed.inspect_error
+  |> birdie.snap(title: "recursive type error test")
+}
+
+pub fn negate_int_test() {
+  infer_yaml_with_prelude("pub fn f(n: Int) { -n }")
+  |> birdie.snap(title: "negate int test")
+}
+
+pub fn negate_bool_test() {
+  infer_yaml_with_prelude("pub fn f(b: Bool) { !b }")
+  |> birdie.snap(title: "negate bool test")
+}
+
+pub fn echo_test() {
+  infer_yaml("pub fn f() { echo 42 }")
+  |> birdie.snap(title: "echo test")
+}
+
+pub fn panic_with_message_test() {
+  infer_yaml_with_prelude("pub fn f() -> Int { panic as \"oops\" }")
+  |> birdie.snap(title: "panic with message test")
+}
+
+pub fn todo_with_message_test() {
+  infer_yaml_with_prelude("pub fn f() -> Int { todo as \"implement me\" }")
+  |> birdie.snap(title: "todo with message test")
+}
+
+pub fn fn_capture_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn add(x: Int, y: Int) -> Int { x + y }
+    pub fn f() { add(1, _) }
+    ",
+  )
+  |> birdie.snap(title: "fn capture test")
+}
+
+pub fn fn_capture_labelled_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn add(x x: Int, to y: Int) -> Int { x + y }
+    pub fn f() { add(to: _, x: 1) }
+    ",
+  )
+  |> birdie.snap(title: "fn capture labelled test")
+}
+
+pub fn binary_operator_add_test() {
+  infer_yaml_with_prelude("pub fn f(a: Int, b: Int) -> Int { a + b }")
+  |> birdie.snap(title: "binary operator add test")
+}
+
+pub fn binary_operator_compare_test() {
+  infer_yaml_with_prelude("pub fn f(a: Int, b: Int) -> Bool { a > b }")
+  |> birdie.snap(title: "binary operator compare test")
+}
+
+pub fn binary_operator_string_concat_test() {
+  infer_yaml_with_prelude("pub fn f(a: String, b: String) -> String { a <> b }")
+  |> birdie.snap(title: "binary operator string concat test")
+}
+
+pub fn pipe_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn double(n: Int) -> Int { n * 2 }
+    pub fn f() -> Int { 5 |> double }
+    ",
+  )
+  |> birdie.snap(title: "pipe test")
+}
+
+pub fn use_statement_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn with_value(callback: fn(Int) -> a) -> a {
+      callback(42)
+    }
+
+    pub fn f() {
+      use x <- with_value()
+      x
+    }
+    ",
+  )
+  |> birdie.snap(title: "use statement test")
+}
+
+pub fn pattern_assignment_test() {
+  infer_yaml(
+    "
+    pub fn f(x) {
+      case x {
+        n as alias -> alias
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "pattern assignment test")
+}
+
+pub fn pattern_concatenate_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn f(s: String) {
+      case s {
+        \"hello\" <> rest -> rest
+        _ -> s
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "pattern concatenate test")
+}
+
+pub fn pattern_float_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn f(x: Float) {
+      case x {
+        1.0 -> 1
+        _ -> 0
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "pattern float test")
+}
+
+pub fn pattern_discard_test() {
+  infer_yaml("pub fn f(x, _) { x }")
+  |> birdie.snap(title: "pattern discard test")
+}
+
+pub fn pattern_bit_string_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn f(bits: BitArray) {
+      case bits {
+        <<a, b, _rest:bytes>> -> a + b
+        _ -> 0
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "pattern bit string test")
+}
+
+pub fn bit_string_with_options_test() {
+  infer_yaml_with_prelude(
+    "pub fn f(n: Int, s: String) { <<n:size(8), s:utf8>> }",
+  )
+  |> birdie.snap(title: "bit string with options test")
+}
+
+pub fn anonymous_fn_with_annotation_test() {
+  infer_yaml_with_prelude("pub fn f() { fn(x: Int) -> Int { x } }")
+  |> birdie.snap(title: "anonymous fn with annotation test")
+}
+
+pub fn let_binding_with_annotation_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn f() {
+      let x: Int = 1
+      x
+    }
+    ",
+  )
+  |> birdie.snap(title: "let binding with annotation test")
+}
+
+pub fn constant_string_test() {
+  infer_yaml("pub const s = \"hello\"")
+  |> birdie.snap(title: "constant string test")
+}
+
+pub fn constant_float_test() {
+  infer_yaml("pub const f = 3.14")
+  |> birdie.snap(title: "constant float test")
+}
+
+pub fn constant_bool_test() {
+  infer_yaml_with_prelude("pub const b = True")
+  |> birdie.snap(title: "constant bool test")
+}
+
+pub fn external_function_test() {
+  infer_yaml_with_prelude(
+    "
+    @external(erlang, \"mod\", \"fun\")
+    pub fn my_func(x: Int) -> String
+    ",
+  )
+  |> birdie.snap(title: "external function test")
+}
+
+pub fn empty_block_error_test() {
+  infer_error("pub fn f() { {} }")
+  |> typed.inspect_error
+  |> birdie.snap(title: "empty block error test")
+}
+
+pub fn invalid_tuple_access_error_test() {
+  infer_error_with_prelude("pub fn f(x: Int) { x.0 }")
+  |> typed.inspect_error
+  |> birdie.snap(title: "invalid tuple access error test")
+}
+
+pub fn invalid_field_access_error_test() {
+  infer_error(
+    "
+    pub fn mk_tuple() { #(1, 2) }
+    pub fn f() { mk_tuple().foo }
+    ",
+  )
+  |> typed.inspect_error
+  |> birdie.snap(title: "invalid field access error test")
+}
+
+pub fn field_not_found_error_test() {
+  infer_error_with_prelude(
+    "
+    type A { A(x: Int) }
+    pub fn mk_a() { A(1) }
+    pub fn f() { mk_a().y }
+    ",
+  )
+  |> typed.inspect_error
+  |> birdie.snap(title: "field not found error test")
+}
+
+pub fn unresolved_module_error_test() {
+  infer_error(
+    "
+    pub fn f() { unknown.foo }
+    ",
+  )
+  |> typed.inspect_error
+  |> birdie.snap(title: "unresolved module error test")
+}
+
+pub fn case_alternative_patterns_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn f(x: Int) {
+      case x {
+        1 | 2 | 3 -> \"low\"
+        _ -> \"other\"
+      }
+    }
+    ",
+  )
+  |> birdie.snap(title: "case alternative patterns test")
+}
+
+pub fn module_alias_test() {
+  infer_with(
+    option_dependencies(),
+    "
+    import gleam/option as opt
+
+    pub fn wrap(x: Int) {
+      opt.Some(x)
+    }
+    ",
+    "example",
+  )
+  |> glance_typed_yaml.module_to_string
+  |> birdie.snap(title: "module alias test")
+}
+
+pub fn record_update_multiple_fields_test() {
+  infer_yaml_with_prelude(
+    "
+    pub type Point { Point(x: Int, y: Int, z: Int) }
+
+    pub fn reset(p: Point) { Point(..p, y: 0, x: 0) }
+    ",
+  )
+  |> birdie.snap(title: "record update multiple fields test")
+}
+
+pub fn use_imported_constant_test() {
+  let deps =
+    dict.from_list([
+      #("gleam", typed.prelude_interface()),
+      #("mymod", infer_interface(dict.new(), "pub const answer = 42", "mymod")),
+    ])
+  infer_with(
+    deps,
+    "
+    import mymod
+
+    pub fn f() { mymod.answer }
+    ",
+    "example",
+  )
+  |> glance_typed_yaml.module_to_string
+  |> birdie.snap(title: "use imported constant test")
 }

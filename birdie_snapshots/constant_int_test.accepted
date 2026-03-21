@@ -1,0 +1,17 @@
+---
+version: 1.5.4
+title: constant int test
+file: ./test/glance_typed_test.gleam
+test_name: constant_int_test
+---
+---
+name: test
+constants:
+- name: x
+  type: "() gleam.Int"
+  publicity: public
+  value:
+    kind: int_literal
+    type: "gleam.Int"
+    value: "42"
+

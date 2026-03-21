@@ -1,0 +1,44 @@
+---
+version: 1.5.4
+title: pattern float test
+file: ./test/glance_typed_test.gleam
+test_name: pattern_float_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn(gleam.Float) -> gleam.Int"
+  publicity: public
+  parameters:
+  - type: "gleam.Float"
+    name: x
+    annotation:
+      annotation: Float
+      type: "gleam.Float"
+  body:
+  - kind: case
+    type: "gleam.Int"
+    subjects:
+    - kind: local_variable
+      type: "gleam.Float"
+      name: x
+    clauses:
+    - patterns:
+      -
+        - kind: float_pattern
+          type: "gleam.Float"
+          value: "1.0"
+      body:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "1"
+    - patterns:
+      -
+        - kind: discard_pattern
+          type: "gleam.Float"
+      body:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "0"
+

@@ -1,0 +1,52 @@
+---
+version: 1.5.4
+title: pipe test
+file: ./test/glance_typed_test.gleam
+test_name: pipe_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  return:
+    annotation: Int
+    type: "gleam.Int"
+  body:
+  - kind: call
+    type: "gleam.Int"
+    function:
+      kind: function
+      type: "fn(gleam.Int) -> gleam.Int"
+      module: test
+      name: double
+    arguments:
+    - kind: int_literal
+      type: "gleam.Int"
+      value: "5"
+- name: double
+  type: "() fn(gleam.Int) -> gleam.Int"
+  publicity: public
+  parameters:
+  - type: "gleam.Int"
+    name: n
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  return:
+    annotation: Int
+    type: "gleam.Int"
+  body:
+  - kind: binary_operator
+    type: "gleam.Int"
+    name: "*"
+    left:
+      kind: local_variable
+      type: "gleam.Int"
+      name: n
+    right:
+      kind: int_literal
+      type: "gleam.Int"
+      value: "2"
+

@@ -1,0 +1,35 @@
+---
+version: 1.5.4
+title: multi variant type test
+file: ./test/glance_typed_test.gleam
+test_name: multi_variant_type_test
+---
+---
+name: test
+types:
+- name: Shape
+  type: "(0) test.Shape(0)"
+  publicity: public
+  opaque: false
+  parameters:
+  - a
+  variants:
+  - name: Circle
+    type: "(0) fn(0) -> test.Shape(0)"
+    fields:
+    - label: radius
+      annotation:
+        annotation: a
+        type: "0"
+  - name: Rectangle
+    type: "(0) fn(0, 0) -> test.Shape(0)"
+    fields:
+    - label: width
+      annotation:
+        annotation: a
+        type: "0"
+    - label: height
+      annotation:
+        annotation: a
+        type: "0"
+

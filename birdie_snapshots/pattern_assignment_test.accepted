@@ -1,0 +1,37 @@
+---
+version: 1.5.4
+title: pattern assignment test
+file: ./test/glance_typed_test.gleam
+test_name: pattern_assignment_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "(0) fn(0) -> 0"
+  publicity: public
+  parameters:
+  - type: "0"
+    name: x
+  body:
+  - kind: case
+    type: "0"
+    subjects:
+    - kind: local_variable
+      type: "0"
+      name: x
+    clauses:
+    - patterns:
+      -
+        - kind: assignment_pattern
+          type: "0"
+          name: alias
+          pattern:
+            kind: variable_pattern
+            type: "0"
+            name: n
+      body:
+        kind: local_variable
+        type: "0"
+        name: alias
+

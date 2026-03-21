@@ -1,0 +1,26 @@
+---
+version: 1.5.4
+title: negate int test
+file: ./test/glance_typed_test.gleam
+test_name: negate_int_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn(gleam.Int) -> gleam.Int"
+  publicity: public
+  parameters:
+  - type: "gleam.Int"
+    name: n
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  body:
+  - kind: negate_int
+    type: "gleam.Int"
+    value:
+      kind: local_variable
+      type: "gleam.Int"
+      name: n
+

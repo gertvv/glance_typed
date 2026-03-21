@@ -1,0 +1,17 @@
+---
+version: 1.5.4
+title: constant float test
+file: ./test/glance_typed_test.gleam
+test_name: constant_float_test
+---
+---
+name: test
+constants:
+- name: f
+  type: "() gleam.Float"
+  publicity: public
+  value:
+    kind: float_literal
+    type: "gleam.Float"
+    value: "3.14"
+

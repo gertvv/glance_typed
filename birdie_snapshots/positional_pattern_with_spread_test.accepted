@@ -18,11 +18,17 @@ types:
     type: "(0) fn(0, 0, 0) -> test.Triple(0)"
     fields:
     - label: a
-      annotation: a
+      annotation:
+        annotation: a
+        type: "0"
     - label: b
-      annotation: a
+      annotation:
+        annotation: a
+        type: "0"
     - label: c
-      annotation: a
+      annotation:
+        annotation: a
+        type: "0"
 functions:
 - name: first
   type: "(0) fn(test.Triple(0)) -> 0"
@@ -30,7 +36,9 @@ functions:
   parameters:
   - type: "test.Triple(0)"
     name: t
-    annotation: "Triple(a)"
+    annotation:
+      annotation: "Triple(a)"
+      type: "test.Triple(0)"
   body:
   - kind: case
     type: "0"

@@ -774,6 +774,27 @@ pub fn interface(module: Module) -> ModuleInterface {
   )
 }
 
+/// Returns the ModuleInterface for the Gleam prelude (the "gleam" module).
+/// This includes built-in types like Int, Float, String, Bool, Nil, List,
+/// Result, BitArray, and UtfCodepoint, along with their constructors.
+pub fn prelude_interface() -> ModuleInterface {
+  let prelude_source =
+    "
+    pub type Int
+    pub type Float
+    pub type String
+    pub type Bool { True False }
+    pub type Nil { Nil }
+    pub type List(a)
+    pub type Result(value, error) { Ok(value) Error(error) }
+    pub type BitArray
+    pub type UtfCodepoint
+    "
+  let assert Ok(parsed) = g.module(prelude_source)
+  let assert Ok(module) = infer_module(dict.new(), parsed, builtin)
+  interface(module)
+}
+
 fn new_context(module_name: String) -> Context {
   Context(
     current_definition: "",
@@ -798,6 +819,8 @@ fn new_context(module_name: String) -> Context {
 /// Returns a human-readable string description of the error.
 /// Does not include the span (location) of the error.
 pub fn inspect_error(error: Error) {
+  // TODO I think we actually can't tell the difference between unresolved
+  // module and unresolved global (and maybe others?). Should we merge the errors?
   case error {
     UnresolvedModule(name:, ..) -> "Module with name '" <> name <> "' not found"
     UnresolvedGlobal(name:, ..) -> "Global with name '" <> name <> "' not found"
@@ -1940,7 +1963,10 @@ fn match_labels_optional(
         Ok(#(a, a_rest)) -> [Some(a), ..match_labels_optional(a_rest, p_rest)]
         Error(_) ->
           case extract_matching(args, fn(a) { field_label(a) == None }) {
-            Ok(#(a, a_rest)) -> [Some(a), ..match_labels_optional(a_rest, p_rest)]
+            Ok(#(a, a_rest)) -> [
+              Some(a),
+              ..match_labels_optional(a_rest, p_rest)
+            ]
             Error(_) -> [None, ..match_labels_optional(args, p_rest)]
           }
       }

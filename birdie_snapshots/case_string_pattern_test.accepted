@@ -1,0 +1,44 @@
+---
+version: 1.5.4
+title: case string pattern test
+file: ./test/glance_typed_test.gleam
+test_name: case_string_pattern_test
+---
+---
+name: test
+functions:
+- name: greet
+  type: "() fn(gleam.String) -> gleam.String"
+  publicity: public
+  parameters:
+  - type: "gleam.String"
+    name: name
+    annotation:
+      annotation: String
+      type: "gleam.String"
+  body:
+  - kind: case
+    type: "gleam.String"
+    subjects:
+    - kind: local_variable
+      type: "gleam.String"
+      name: name
+    clauses:
+    - patterns:
+      -
+        - kind: string_pattern
+          type: "gleam.String"
+          value: world
+      body:
+        kind: string_literal
+        type: "gleam.String"
+        value: "Hello, world!"
+    - patterns:
+      -
+        - kind: discard_pattern
+          type: "gleam.String"
+      body:
+        kind: string_literal
+        type: "gleam.String"
+        value: "Hi!"
+

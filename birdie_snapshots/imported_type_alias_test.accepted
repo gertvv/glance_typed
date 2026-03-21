@@ -10,5 +10,7 @@ type_aliases:
 - name: OptionalInt
   type: "() gleam/option.Option(gleam.Int)"
   publicity: public
-  aliased: "Option(Int)"
+  aliased:
+    annotation: "Option(Int)"
+    type: "gleam/option.Option(gleam.Int)"
 

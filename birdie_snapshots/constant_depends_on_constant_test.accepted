@@ -1,0 +1,25 @@
+---
+version: 1.5.4
+title: constant depends on constant test
+file: ./test/glance_typed_test.gleam
+test_name: constant_depends_on_constant_test
+---
+---
+name: test
+constants:
+- name: b
+  type: "() gleam.Int"
+  publicity: public
+  value:
+    kind: constant
+    type: "gleam.Int"
+    module: test
+    name: a
+- name: a
+  type: "() gleam.Int"
+  publicity: private
+  value:
+    kind: int_literal
+    type: "gleam.Int"
+    value: "1"
+

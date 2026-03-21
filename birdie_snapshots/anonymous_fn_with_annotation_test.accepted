@@ -1,0 +1,29 @@
+---
+version: 1.5.4
+title: anonymous fn with annotation test
+file: ./test/glance_typed_test.gleam
+test_name: anonymous_fn_with_annotation_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> fn(gleam.Int) -> gleam.Int"
+  publicity: public
+  body:
+  - kind: fn
+    type: "fn(gleam.Int) -> gleam.Int"
+    parameters:
+    - type: "gleam.Int"
+      name: x
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+    return:
+      annotation: Int
+      type: "gleam.Int"
+    body:
+    - kind: local_variable
+      type: "gleam.Int"
+      name: x
+

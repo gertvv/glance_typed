@@ -1,0 +1,56 @@
+---
+version: 1.5.4
+title: let assert test
+file: ./test/glance_typed_test.gleam
+test_name: let_assert_test
+---
+---
+name: test
+types:
+- name: Wrapper
+  type: "(0) test.Wrapper(0)"
+  publicity: private
+  opaque: false
+  parameters:
+  - a
+  variants:
+  - name: Wrapper
+    type: "(0) fn(0) -> test.Wrapper(0)"
+    fields:
+    - label: value
+      annotation:
+        annotation: a
+        type: "0"
+functions:
+- name: unwrap
+  type: "(0) fn(test.Wrapper(0)) -> 0"
+  publicity: public
+  parameters:
+  - type: "test.Wrapper(0)"
+    name: w
+    annotation:
+      annotation: "Wrapper(a)"
+      type: "test.Wrapper(0)"
+  body:
+  - kind: assignment
+    type: "test.Wrapper(0)"
+    assignment_kind: let_assert
+    pattern:
+      kind: constructor_pattern
+      type: "test.Wrapper(0)"
+      constructor: Wrapper
+      with_spread: false
+      ordered_arguments:
+      - pattern:
+          kind: variable_pattern
+          type: "0"
+          name: v
+      resolved_module: test
+    value:
+      kind: local_variable
+      type: "test.Wrapper(0)"
+      name: w
+  - kind: local_variable
+    type: "0"
+    name: v
+

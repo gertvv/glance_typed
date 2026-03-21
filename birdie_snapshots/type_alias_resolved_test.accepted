@@ -1,0 +1,35 @@
+---
+version: 1.5.4
+title: type alias resolved test
+file: ./test/glance_typed_test.gleam
+test_name: type_alias_resolved_test
+---
+---
+name: test
+type_aliases:
+- name: Alias
+  type: "(0) 0"
+  publicity: public
+  parameters:
+  - a
+  aliased:
+    annotation: a
+    type: "0"
+functions:
+- name: f
+  type: "() fn(gleam.Int) -> gleam.Int"
+  publicity: public
+  parameters:
+  - type: "gleam.Int"
+    name: x
+    annotation:
+      annotation: "Alias(Int)"
+      type: "gleam.Int"
+  return:
+    annotation: Int
+    type: "gleam.Int"
+  body:
+  - kind: local_variable
+    type: "gleam.Int"
+    name: x
+

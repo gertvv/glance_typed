@@ -1,0 +1,51 @@
+---
+version: 1.5.4
+title: case multi subject test
+file: ./test/glance_typed_test.gleam
+test_name: case_multi_subject_test
+---
+---
+name: test
+functions:
+- name: both_zero
+  type: "() fn(gleam.Int, gleam.Int) -> gleam.Int"
+  publicity: public
+  parameters:
+  - type: "gleam.Int"
+    name: a
+  - type: "gleam.Int"
+    name: b
+  body:
+  - kind: case
+    type: "gleam.Int"
+    subjects:
+    - kind: local_variable
+      type: "gleam.Int"
+      name: a
+    - kind: local_variable
+      type: "gleam.Int"
+      name: b
+    clauses:
+    - patterns:
+      -
+        - kind: int_pattern
+          type: "gleam.Int"
+          value: "0"
+        - kind: int_pattern
+          type: "gleam.Int"
+          value: "0"
+      body:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "1"
+    - patterns:
+      -
+        - kind: discard_pattern
+          type: "gleam.Int"
+        - kind: discard_pattern
+          type: "gleam.Int"
+      body:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "0"
+

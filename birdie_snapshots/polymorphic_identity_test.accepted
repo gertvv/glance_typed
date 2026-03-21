@@ -1,0 +1,20 @@
+---
+version: 1.5.4
+title: polymorphic identity test
+file: ./test/glance_typed_test.gleam
+test_name: polymorphic_identity_test
+---
+---
+name: test
+functions:
+- name: id
+  type: "(0) fn(0) -> 0"
+  publicity: public
+  parameters:
+  - type: "0"
+    name: x
+  body:
+  - kind: local_variable
+    type: "0"
+    name: x
+

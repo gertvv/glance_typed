@@ -1,0 +1,28 @@
+---
+version: 1.5.4
+title: external function test
+file: ./test/glance_typed_test.gleam
+test_name: external_function_test
+---
+---
+name: test
+functions:
+- name: my_func
+  type: "() fn(gleam.Int) -> gleam.String"
+  publicity: public
+  attributes:
+  - name: external
+    arguments:
+    - name: erlang
+    - value: mod
+    - value: fun
+  parameters:
+  - type: "gleam.Int"
+    name: x
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  return:
+    annotation: String
+    type: "gleam.String"
+

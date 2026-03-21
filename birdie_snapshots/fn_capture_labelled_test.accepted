@@ -1,0 +1,65 @@
+---
+version: 1.5.4
+title: fn capture labelled test
+file: ./test/glance_typed_test.gleam
+test_name: fn_capture_labelled_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> fn(gleam.Int) -> gleam.Int"
+  publicity: public
+  body:
+  - kind: fn
+    type: "fn(gleam.Int) -> gleam.Int"
+    parameters:
+    - type: "gleam.Int"
+      name: T1
+    body:
+    - kind: call
+      type: "gleam.Int"
+      function:
+        kind: function
+        type: "fn(gleam.Int, gleam.Int) -> gleam.Int"
+        module: test
+        name: add
+      arguments:
+      - kind: int_literal
+        type: "gleam.Int"
+        value: "1"
+      - kind: local_variable
+        type: "gleam.Int"
+        name: T1
+- name: add
+  type: "() fn(gleam.Int, gleam.Int) -> gleam.Int"
+  publicity: public
+  parameters:
+  - type: "gleam.Int"
+    label: x
+    name: x
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  - type: "gleam.Int"
+    label: to
+    name: y
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  return:
+    annotation: Int
+    type: "gleam.Int"
+  body:
+  - kind: binary_operator
+    type: "gleam.Int"
+    name: "+"
+    left:
+      kind: local_variable
+      type: "gleam.Int"
+      name: x
+    right:
+      kind: local_variable
+      type: "gleam.Int"
+      name: y
+

@@ -1,0 +1,20 @@
+---
+version: 1.5.4
+title: echo test
+file: ./test/glance_typed_test.gleam
+test_name: echo_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  body:
+  - kind: echo
+    type: "gleam.Int"
+    expression:
+      kind: int_literal
+      type: "gleam.Int"
+      value: "42"
+

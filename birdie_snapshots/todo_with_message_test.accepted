@@ -1,0 +1,23 @@
+---
+version: 1.5.4
+title: todo with message test
+file: ./test/glance_typed_test.gleam
+test_name: todo_with_message_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  return:
+    annotation: Int
+    type: "gleam.Int"
+  body:
+  - kind: todo
+    type: "gleam.Int"
+    value:
+      kind: string_literal
+      type: "gleam.String"
+      value: "implement me"
+

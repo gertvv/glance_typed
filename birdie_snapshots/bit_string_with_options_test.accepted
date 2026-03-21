@@ -1,0 +1,43 @@
+---
+version: 1.5.4
+title: bit string with options test
+file: ./test/glance_typed_test.gleam
+test_name: bit_string_with_options_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn(gleam.Int, gleam.String) -> gleam.BitArray"
+  publicity: public
+  parameters:
+  - type: "gleam.Int"
+    name: n
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  - type: "gleam.String"
+    name: s
+    annotation:
+      annotation: String
+      type: "gleam.String"
+  body:
+  - kind: bit_string
+    type: "gleam.BitArray"
+    segments:
+    - expression:
+        kind: local_variable
+        type: "gleam.Int"
+        name: n
+      options:
+      - size_value:
+          kind: int_literal
+          type: "gleam.Int"
+          value: "8"
+    - expression:
+        kind: local_variable
+        type: "gleam.String"
+        name: s
+      options:
+      - utf8
+

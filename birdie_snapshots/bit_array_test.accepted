@@ -1,0 +1,29 @@
+---
+version: 1.5.4
+title: bit array test
+file: ./test/glance_typed_test.gleam
+test_name: bit_array_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> gleam.BitArray"
+  publicity: public
+  body:
+  - kind: bit_string
+    type: "gleam.BitArray"
+    segments:
+    - expression:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "1"
+    - expression:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "2"
+    - expression:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "3"
+

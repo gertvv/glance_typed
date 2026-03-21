@@ -1,0 +1,59 @@
+---
+version: 1.5.4
+title: record update test
+file: ./test/glance_typed_test.gleam
+test_name: record_update_test
+---
+---
+name: test
+types:
+- name: Point
+  type: "(0) test.Point(0)"
+  publicity: public
+  opaque: false
+  parameters:
+  - a
+  variants:
+  - name: Point
+    type: "(0) fn(0, 0) -> test.Point(0)"
+    fields:
+    - label: x
+      annotation:
+        annotation: a
+        type: "0"
+    - label: y
+      annotation:
+        annotation: a
+        type: "0"
+functions:
+- name: reset_x
+  type: "(0) fn(test.Point(0), 0) -> test.Point(0)"
+  publicity: public
+  parameters:
+  - type: "test.Point(0)"
+    name: p
+    annotation:
+      annotation: "Point(a)"
+      type: "test.Point(0)"
+  - type: "0"
+    name: new_x
+    annotation:
+      annotation: a
+      type: "0"
+  body:
+  - kind: record_update
+    type: "test.Point(0)"
+    module: test
+    constructor: Point
+    record:
+      kind: local_variable
+      type: "test.Point(0)"
+      name: p
+    fields:
+    - label: x
+      value:
+        kind: local_variable
+        type: "0"
+        name: new_x
+    - type: "0"
+

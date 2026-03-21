@@ -1,0 +1,61 @@
+---
+version: 1.5.4
+title: record update multiple fields test
+file: ./test/glance_typed_test.gleam
+test_name: record_update_multiple_fields_test
+---
+---
+name: test
+types:
+- name: Point
+  type: "() test.Point"
+  publicity: public
+  opaque: false
+  variants:
+  - name: Point
+    type: "() fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point"
+    fields:
+    - label: x
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+    - label: y
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+    - label: z
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+functions:
+- name: reset
+  type: "() fn(test.Point) -> test.Point"
+  publicity: public
+  parameters:
+  - type: "test.Point"
+    name: p
+    annotation:
+      annotation: Point
+      type: "test.Point"
+  body:
+  - kind: record_update
+    type: "test.Point"
+    module: test
+    constructor: Point
+    record:
+      kind: local_variable
+      type: "test.Point"
+      name: p
+    fields:
+    - label: x
+      value:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "0"
+    - label: y
+      value:
+        kind: int_literal
+        type: "gleam.Int"
+        value: "0"
+    - type: "gleam.Int"
+

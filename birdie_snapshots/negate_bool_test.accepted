@@ -1,0 +1,26 @@
+---
+version: 1.5.4
+title: negate bool test
+file: ./test/glance_typed_test.gleam
+test_name: negate_bool_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn(gleam.Bool) -> gleam.Bool"
+  publicity: public
+  parameters:
+  - type: "gleam.Bool"
+    name: b
+    annotation:
+      annotation: Bool
+      type: "gleam.Bool"
+  body:
+  - kind: negate_bool
+    type: "gleam.Bool"
+    value:
+      kind: local_variable
+      type: "gleam.Bool"
+      name: b
+

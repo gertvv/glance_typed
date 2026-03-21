@@ -1,0 +1,27 @@
+---
+version: 1.5.4
+title: list spread test
+file: ./test/glance_typed_test.gleam
+test_name: list_spread_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn(gleam.List(gleam.Int)) -> gleam.List(gleam.Int)"
+  publicity: public
+  parameters:
+  - type: "gleam.List(gleam.Int)"
+    name: xs
+  body:
+  - kind: list
+    type: "gleam.List(gleam.Int)"
+    elements:
+    - kind: int_literal
+      type: "gleam.Int"
+      value: "0"
+    rest:
+      kind: local_variable
+      type: "gleam.List(gleam.Int)"
+      name: xs
+

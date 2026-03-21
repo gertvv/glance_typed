@@ -1,0 +1,45 @@
+---
+version: 1.5.4
+title: pattern concatenate test
+file: ./test/glance_typed_test.gleam
+test_name: pattern_concatenate_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn(gleam.String) -> gleam.String"
+  publicity: public
+  parameters:
+  - type: "gleam.String"
+    name: s
+    annotation:
+      annotation: String
+      type: "gleam.String"
+  body:
+  - kind: case
+    type: "gleam.String"
+    subjects:
+    - kind: local_variable
+      type: "gleam.String"
+      name: s
+    clauses:
+    - patterns:
+      -
+        - kind: concatenate_pattern
+          type: "gleam.String"
+          prefix: hello
+          suffix_name: rest
+      body:
+        kind: local_variable
+        type: "gleam.String"
+        name: rest
+    - patterns:
+      -
+        - kind: discard_pattern
+          type: "gleam.String"
+      body:
+        kind: local_variable
+        type: "gleam.String"
+        name: s
+

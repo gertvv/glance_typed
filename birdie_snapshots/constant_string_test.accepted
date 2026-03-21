@@ -1,0 +1,17 @@
+---
+version: 1.5.4
+title: constant string test
+file: ./test/glance_typed_test.gleam
+test_name: constant_string_test
+---
+---
+name: test
+constants:
+- name: s
+  type: "() gleam.String"
+  publicity: public
+  value:
+    kind: string_literal
+    type: "gleam.String"
+    value: hello
+

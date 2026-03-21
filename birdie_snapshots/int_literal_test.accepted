@@ -1,0 +1,17 @@
+---
+version: 1.5.4
+title: int literal test
+file: ./test/glance_typed_test.gleam
+test_name: int_literal_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  body:
+  - kind: int_literal
+    type: "gleam.Int"
+    value: "1"
+

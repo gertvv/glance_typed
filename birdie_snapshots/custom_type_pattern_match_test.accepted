@@ -1,8 +1,8 @@
 ---
 version: 1.5.4
-title: field access test
+title: custom type pattern match test
 file: ./test/glance_typed_test.gleam
-test_name: field_access_test
+test_name: custom_type_pattern_match_test
 ---
 ---
 name: test
@@ -22,7 +22,7 @@ types:
         annotation: a
         type: "0"
 functions:
-- name: get_value
+- name: unbox
   type: "(0) fn(test.Box(0)) -> 0"
   publicity: public
   parameters:
@@ -32,14 +32,27 @@ functions:
       annotation: "Box(a)"
       type: "test.Box(0)"
   body:
-  - kind: field_access
+  - kind: case
     type: "0"
-    container:
-      kind: local_variable
+    subjects:
+    - kind: local_variable
       type: "test.Box(0)"
       name: b
-    module: test
-    variant: Box
-    label: value
-    index: 0
+    clauses:
+    - patterns:
+      -
+        - kind: constructor_pattern
+          type: "test.Box(0)"
+          constructor: Box
+          with_spread: false
+          ordered_arguments:
+          - pattern:
+              kind: variable_pattern
+              type: "0"
+              name: v
+          resolved_module: test
+      body:
+        kind: local_variable
+        type: "0"
+        name: v
 

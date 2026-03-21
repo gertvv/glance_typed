@@ -1,0 +1,22 @@
+---
+version: 1.5.4
+title: pattern discard test
+file: ./test/glance_typed_test.gleam
+test_name: pattern_discard_test
+---
+---
+name: test
+functions:
+- name: f
+  type: "(0, 1) fn(0, 1) -> 0"
+  publicity: public
+  parameters:
+  - type: "0"
+    name: x
+  - type: "1"
+    name: _
+  body:
+  - kind: local_variable
+    type: "0"
+    name: x
+

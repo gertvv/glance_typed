@@ -18,12 +18,18 @@ types:
     type: "(0) fn(test.Tree(0), test.Tree(0)) -> test.Tree(0)"
     fields:
     - label: left
-      annotation: "Tree(e)"
+      annotation:
+        annotation: "Tree(e)"
+        type: "test.Tree(0)"
     - label: right
-      annotation: "Tree(e)"
+      annotation:
+        annotation: "Tree(e)"
+        type: "test.Tree(0)"
   - name: Leaf
     type: "(0) fn(0) -> test.Tree(0)"
     fields:
     - label: data
-      annotation: e
+      annotation:
+        annotation: e
+        type: "0"
 
