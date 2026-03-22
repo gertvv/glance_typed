@@ -1778,11 +1778,14 @@ fn infer_pattern(
         }
       })
 
-      let positional_arguments =
-        list.map(tagged_arguments, fn(x) {
+      let #(c, positional_arguments) =
+        list.map_fold(tagged_arguments, c, fn(c, x) {
           case x {
-            #(Some(p), _) -> MatchedArgument(p)
-            #(None, tv) -> UnmatchedArgument(resolve_type(c, tv))
+            #(Some(p), _) -> #(c, MatchedArgument(p))
+            #(None, tv) -> {
+              let #(c, t) = resolve_type(c, tv)
+              #(c, UnmatchedArgument(t))
+            }
           }
         })
 
@@ -2245,7 +2248,8 @@ fn infer_expression(
         use #(c, value) <- result.try(infer_expression(c, n, container))
 
         // field access must be on a named type
-        let value_typ = case resolve_type(c, value.typ) {
+        let #(c, value_typ_resolved) = resolve_type(c, value.typ)
+        let value_typ = case value_typ_resolved {
           NamedType(module, type_name, _) -> Ok(#(type_name, module))
           _ -> Error(InvalidFieldAccess(context_location(c)))
         }
@@ -2334,7 +2338,8 @@ fn infer_expression(
         })
 
       // build type hints by label/position for Fn arg inference
-      let hinted_args = case resolve_type(c, fun.typ) {
+      let #(c, fun_typ_resolved) = resolve_type(c, fun.typ)
+      let hinted_args = case fun_typ_resolved {
         FunctionType(params, _) -> build_arg_hints(args, labels, params)
         _ -> list.map(args, fn(arg) { #(None, arg) })
       }
@@ -2376,7 +2381,8 @@ fn infer_expression(
     }
     g.TupleIndex(location:, tuple:, index:) -> {
       use #(c, tuple) <- result.try(infer_expression(c, n, tuple))
-      case resolve_type(c, tuple.typ) {
+      let #(c, tuple_typ_resolved) = resolve_type(c, tuple.typ)
+      case tuple_typ_resolved {
         TupleType(elements) -> {
           tuple_index_type(c, elements, index)
           |> result.map(fn(typ) {
@@ -2820,8 +2826,8 @@ fn do_instantiate(c: Context, n: PolyEnv, typ: Type) -> Type {
 }
 
 fn unify(c: Context, a: Type, b: Type) -> Result(Context, Error) {
-  let a = resolve_type(c, a)
-  let b = resolve_type(c, b)
+  let #(c, a) = resolve_type(c, a)
+  let #(c, b) = resolve_type(c, b)
   case a, b {
     VariableType(ref), b ->
       case a == b {
@@ -2897,18 +2903,28 @@ fn occurs(c: Context, id: TypeVarId, in: Type) -> #(Context, Bool) {
   }
 }
 
-/// follow any references to get the real type
-fn resolve_type(c: Context, typ: Type) -> Type {
+/// follow any references to get the real type, with path compression
+fn resolve_type(c: Context, typ: Type) -> #(Context, Type) {
   case typ {
     VariableType(x) -> {
       case get_type_var(c, x) {
-        Bound(x) -> resolve_type(c, x)
-        Unbound(..) -> typ
+        Bound(inner) -> {
+          // if the inner type is a variable, update the outer to point to it
+          case inner {
+            VariableType(_) -> {
+              let #(c, resolved) = resolve_type(c, inner)
+              let c = set_type_var(c, x, Bound(resolved))
+              #(c, resolved)
+            }
+            _ -> #(c, inner)
+          }
+        }
+        Unbound -> #(c, typ)
       }
     }
-    NamedType(..) -> typ
-    FunctionType(..) -> typ
-    TupleType(..) -> typ
+    NamedType(..) -> #(c, typ)
+    FunctionType(..) -> #(c, typ)
+    TupleType(..) -> #(c, typ)
   }
 }
 
