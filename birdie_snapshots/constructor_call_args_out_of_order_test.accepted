@@ -1,8 +1,8 @@
 ---
 version: 1.5.4
-title: record update multiple fields test
+title: constructor call args out of order test
 file: ./test/glance_typed_test.gleam
-test_name: record_update_multiple_fields_test
+test_name: constructor_call_args_out_of_order_test
 ---
 ---
 name: test
@@ -28,30 +28,25 @@ types:
         annotation: Int
         type: "gleam.Int"
 functions:
-- name: reset
-  type: "() fn(test.Point) -> test.Point"
+- name: main
+  type: "() fn() -> test.Point"
   publicity: public
-  parameters:
-  - type: "test.Point"
-    name: p
-    annotation:
-      annotation: Point
-      type: "test.Point"
   body:
-  - kind: record_update
+  - kind: call
     type: "test.Point"
-    module: test
-    constructor: Point
-    record:
-      kind: local_variable
-      type: "test.Point"
-      name: p
+    function:
+      kind: function
+      type: "fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point"
+      module: test
+      name: Point
     positional_arguments:
     - kind: int_literal
       type: "gleam.Int"
-      value: "0"
+      value: "1"
     - kind: int_literal
       type: "gleam.Int"
-      value: "0"
-    - unchanged: "gleam.Int"
+      value: "2"
+    - kind: int_literal
+      type: "gleam.Int"
+      value: "3"
 

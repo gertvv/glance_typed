@@ -36,7 +36,7 @@ functions:
       type: "fn(0) -> test.Box(0)"
       module: test
       name: Box
-    arguments:
+    positional_arguments:
     - kind: local_variable
       type: "0"
       name: x

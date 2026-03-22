@@ -21,7 +21,7 @@ functions:
       type: "fn(gleam/option.Option(gleam.Int), fn(gleam.Int) -> gleam.Int) -> gleam/option.Option(gleam.Int)"
       module: "gleam/option"
       name: map
-    arguments:
+    positional_arguments:
     - kind: local_variable
       type: "gleam/option.Option(gleam.Int)"
       name: maybe

@@ -96,11 +96,19 @@ fn variant_to_yaml(variant: typed.Variant) -> cymbal.Yaml {
     #("type", polytype_to_yaml(variant.typ)),
     #(
       "fields",
-      yaml_list(variant.fields, field_to_yaml(
-        _,
-        "annotation",
-        annotation_to_yaml,
-      )),
+      yaml_list(variant.fields, fn(field) {
+        let #(label, item) = case field {
+          typed.LabelledVariantField(item, label) -> #(Some(label), item)
+          typed.UnlabelledVariantField(item) -> #(None, item)
+        }
+        yaml_block(
+          [
+            option.map(label, fn(l) { #("label", cymbal.string(l)) }),
+            Some(#("annotation", annotation_to_yaml(item))),
+          ]
+          |> option.values,
+        )
+      }),
     ),
   ])
 }
@@ -301,7 +309,7 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
       resolved_module:,
       constructor:,
       record:,
-      ordered_fields:,
+      positional_fields:,
       ..,
     ) ->
       typed_node("record_update", typ, [
@@ -309,20 +317,12 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
         #("constructor", cymbal.string(constructor)),
         #("record", expression_to_yaml(record)),
         #(
-          "fields",
-          yaml_list(ordered_fields, fn(field) {
+          "positional_arguments",
+          yaml_list(positional_fields, fn(field) {
             case field {
-              typed.UpdatedField(typ:, label:, value:) ->
-                yaml_block([
-                  #("type", type_to_yaml(typ)),
-                  #("label", cymbal.string(label)),
-                  #("value", expression_to_yaml(value)),
-                ])
-              typed.OriginalField(typ:, label:) ->
-                yaml_block([
-                  #("type", type_to_yaml(typ)),
-                  #("label", cymbal.string(label)),
-                ])
+              typed.UpdatedField(expr) -> expression_to_yaml(expr)
+              typed.UnchangedField(typ) ->
+                cymbal.block([#("unchanged", type_to_yaml(typ))])
             }
           }),
         ),
@@ -343,10 +343,13 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
         #("label", cymbal.string(label)),
         #("index", cymbal.int(index)),
       ])
-    typed.Call(typ:, function:, ordered_arguments:, ..) ->
+    typed.Call(typ:, function:, positional_arguments:, ..) ->
       typed_node("call", typ, [
         #("function", expression_to_yaml(function)),
-        #("arguments", yaml_list(ordered_arguments, expression_to_yaml)),
+        #(
+          "positional_arguments",
+          yaml_list(positional_arguments, expression_to_yaml),
+        ),
       ])
     typed.TupleIndex(typ:, tuple:, index:, ..) ->
       typed_node("tuple_index", typ, [
@@ -424,15 +427,11 @@ fn field_to_yaml(
   convert: fn(a) -> cymbal.Yaml,
 ) -> cymbal.Yaml {
   let label = case field {
-    typed.LabelledField(label, ..) -> Some(label)
-    typed.ShorthandField(label, ..) -> Some(label)
+    typed.LabelledField(..) -> Some(field.label)
+    typed.ShorthandField(..) -> Some(field.label)
     typed.UnlabelledField(..) -> None
   }
-  let item = case field {
-    typed.LabelledField(_, _, item) -> item
-    typed.ShorthandField(_, _, item) -> item
-    typed.UnlabelledField(item) -> item
-  }
+  let item = field.item
   yaml_block(
     [
       option.map(label, fn(l) { #("label", cymbal.string(l)) }),
@@ -554,7 +553,7 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
       constructor:,
       with_spread:,
       resolved_module:,
-      ordered_arguments:,
+      positional_arguments:,
       ..,
     ) ->
       typed_node("constructor_pattern", typ, [
@@ -565,12 +564,13 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
         #("constructor", cymbal.string(constructor)),
         #("with_spread", cymbal.bool(with_spread)),
         #(
-          "ordered_arguments",
-          yaml_list(ordered_arguments, field_to_yaml(
-            _,
-            "pattern",
-            pattern_to_yaml,
-          )),
+          "positional_arguments",
+          yaml_list(positional_arguments, fn(f) {
+            case f {
+              Some(pattern) -> pattern_to_yaml(pattern)
+              None -> cymbal.block([#("kind", cymbal.string("none"))])
+            }
+          }),
         ),
         #("resolved_module", cymbal.string(resolved_module)),
       ])

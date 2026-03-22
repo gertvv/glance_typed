@@ -1,8 +1,8 @@
 ---
 version: 1.5.4
-title: record update multiple fields test
+title: record update fields out of order test
 file: ./test/glance_typed_test.gleam
-test_name: record_update_multiple_fields_test
+test_name: record_update_fields_out_of_order_test
 ---
 ---
 name: test
@@ -29,7 +29,7 @@ types:
         type: "gleam.Int"
 functions:
 - name: reset
-  type: "() fn(test.Point) -> test.Point"
+  type: "() fn(test.Point, gleam.Int, gleam.Int, gleam.Int) -> test.Point"
   publicity: public
   parameters:
   - type: "test.Point"
@@ -37,6 +37,21 @@ functions:
     annotation:
       annotation: Point
       type: "test.Point"
+  - type: "gleam.Int"
+    name: a
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  - type: "gleam.Int"
+    name: b
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
+  - type: "gleam.Int"
+    name: c
+    annotation:
+      annotation: Int
+      type: "gleam.Int"
   body:
   - kind: record_update
     type: "test.Point"
@@ -47,11 +62,13 @@ functions:
       type: "test.Point"
       name: p
     positional_arguments:
-    - kind: int_literal
+    - kind: local_variable
       type: "gleam.Int"
-      value: "0"
-    - kind: int_literal
+      name: a
+    - kind: local_variable
       type: "gleam.Int"
-      value: "0"
-    - unchanged: "gleam.Int"
+      name: b
+    - kind: local_variable
+      type: "gleam.Int"
+      name: c
 

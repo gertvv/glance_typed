@@ -10,22 +10,21 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
-// TODO rename variable to "prelude"?
-pub const builtin = "gleam"
+pub const prelude = "gleam"
 
-pub const nil_type = NamedType(builtin, "Nil", [])
+pub const nil_type = NamedType(prelude, "Nil", [])
 
-pub const bool_type = NamedType(builtin, "Bool", [])
+pub const bool_type = NamedType(prelude, "Bool", [])
 
-pub const int_type = NamedType(builtin, "Int", [])
+pub const int_type = NamedType(prelude, "Int", [])
 
-pub const codepoint_type = NamedType(builtin, "UtfCodepoint", [])
+pub const codepoint_type = NamedType(prelude, "UtfCodepoint", [])
 
-pub const float_type = NamedType(builtin, "Float", [])
+pub const float_type = NamedType(prelude, "Float", [])
 
-pub const string_type = NamedType(builtin, "String", [])
+pub const string_type = NamedType(prelude, "String", [])
 
-pub const bit_array_type = NamedType(builtin, "BitArray", [])
+pub const bit_array_type = NamedType(prelude, "BitArray", [])
 
 pub type TypeVarId {
   TypeVarId(id: Int)
@@ -75,12 +74,12 @@ pub type ModuleInterface {
 pub type FunctionDefinition {
   FunctionDefinition(
     typ: Poly,
+    location: Span,
     name: String,
     publicity: Publicity,
     parameters: List(FunctionParameter),
     return: Option(Annotation),
     body: List(Statement),
-    location: Span,
   )
 }
 
@@ -168,7 +167,7 @@ pub type Pattern {
     arguments: List(Field(Pattern)),
     with_spread: Bool,
     resolved_module: String,
-    ordered_arguments: List(Field(Pattern)),
+    positional_arguments: List(Option(Pattern)),
   )
 }
 
@@ -176,9 +175,9 @@ pub type RecordUpdateField(t) {
   RecordUpdateField(label: String, item: Option(t))
 }
 
-pub type RecordFieldUpdate {
-  UpdatedField(typ: Type, label: String, value: Expression)
-  OriginalField(typ: Type, label: String)
+pub type RecordUpdatePositionalField {
+  UpdatedField(expression: Expression)
+  UnchangedField(typ: Type)
 }
 
 pub type Expression {
@@ -227,7 +226,7 @@ pub type Expression {
     record: Expression,
     fields: List(RecordUpdateField(Expression)),
     resolved_module: String,
-    ordered_fields: List(RecordFieldUpdate),
+    positional_fields: List(RecordUpdatePositionalField),
   )
   FieldAccess(
     typ: Type,
@@ -243,7 +242,7 @@ pub type Expression {
     location: Span,
     function: Expression,
     arguments: List(Field(Expression)),
-    ordered_arguments: List(Expression),
+    positional_arguments: List(Expression),
   )
   TupleIndex(typ: Type, location: Span, tuple: Expression, index: Int)
   FnCapture(
@@ -380,13 +379,23 @@ pub type CustomType {
 }
 
 pub type Variant {
-  Variant(typ: Poly, name: String, fields: List(Field(Annotation)))
+  Variant(
+    typ: Poly,
+    name: String,
+    fields: List(VariantField(Annotation)),
+    attributes: List(Attribute),
+  )
 }
 
 pub type Field(t) {
-  LabelledField(label: String, label_location: Span, item: t)
-  ShorthandField(label: String, location: Span, item: t)
+  LabelledField(item: t, label: String, label_location: Span)
+  ShorthandField(item: t, label: String, location: Span)
   UnlabelledField(item: t)
+}
+
+pub type VariantField(t) {
+  LabelledVariantField(item: t, label: String)
+  UnlabelledVariantField(item: t)
 }
 
 pub type Type {
@@ -798,7 +807,7 @@ pub fn prelude_interface() -> ModuleInterface {
     pub type UtfCodepoint
     "
   let assert Ok(parsed) = g.module(prelude_source)
-  let assert Ok(module) = infer_module(dict.new(), parsed, builtin)
+  let assert Ok(module) = infer_module(dict.new(), parsed, prelude)
   interface(module)
 }
 
@@ -808,12 +817,12 @@ fn new_context(module_name: String) -> Context {
     current_span: Span(0, 0),
     type_vars: dict.new(),
     module: Module(
-      name: module_name,
       imports: [],
       custom_types: [],
       type_aliases: [],
       constants: [],
       functions: [],
+      name: module_name,
     ),
     type_uid: 0,
     temp_uid: 1,
@@ -1024,12 +1033,12 @@ fn infer_function(
   let fun =
     FunctionDefinition(
       typ:,
+      location:,
       name:,
       publicity:,
       parameters:,
       return:,
       body:,
-      location:,
     )
   #(c, fun)
 }
@@ -1128,22 +1137,22 @@ fn infer_variant(
   typ: Type,
   variant: g.Variant,
 ) -> Result(#(Context, Variant), Error) {
-  use #(c, fields) <- result.map(
+  use #(c, fields) <- result.try(
     list.try_fold(variant.fields, #(c, []), fn(acc, field) {
       let #(c, fields) = acc
       use #(c, annotation) <- result.map(do_infer_annotation(c, n, field.item))
       let field = case field {
         g.LabelledVariantField(_, label) ->
-          LabelledField(label, Span(0, 0), annotation)
-        g.UnlabelledVariantField(_) -> UnlabelledField(annotation)
+          LabelledVariantField(annotation, label)
+        g.UnlabelledVariantField(_) -> UnlabelledVariantField(annotation)
       }
       #(c, [field, ..fields])
     }),
   )
   let fields = list.reverse(fields)
 
-  let types = list.map(fields, fn(f) { field_item(f).typ })
-  let labels = list.map(fields, fn(f) { field_label(f) })
+  let types = list.map(fields, fn(f) { f.item.typ })
+  let labels = list.map(fields, variant_field_label)
 
   // handle 0 parameter variants are not functions
   let #(c, typ) = case types {
@@ -1155,7 +1164,8 @@ fn infer_variant(
 
   let c = register_function(c, variant.name, typ, labels)
 
-  #(c, Variant(typ, variant.name, fields))
+  use attributes <- result.map(infer_attributes(c, variant.attributes))
+  #(c, Variant(typ, variant.name, fields, attributes))
 }
 
 fn find_vars_in_type(t: g.Type) -> List(String) {
@@ -1352,7 +1362,7 @@ fn add_module_interface(c: Context, m: ModuleInterface) -> Context {
           m.name,
           variant.name,
           variant.typ,
-          list.map(variant.fields, fn(f) { field_label(f) }),
+          list.map(variant.fields, variant_field_label),
         ),
       )
     })
@@ -1414,7 +1424,7 @@ fn resolve_unqualified_global(
   resolve_global_name(c, c.module.name, name)
   |> result.try_recover(fn(_) {
     // try prelude
-    resolve_global_name(c, builtin, name)
+    resolve_global_name(c, prelude, name)
   })
 }
 
@@ -1447,7 +1457,7 @@ fn resolve_type_name(
     Some(mod) -> resolve_aliased_type_name(c, mod, name)
     None ->
       resolve_global_type_name(c, c.module.name, name)
-      |> result.try_recover(fn(_) { resolve_global_type_name(c, builtin, name) })
+      |> result.try_recover(fn(_) { resolve_global_type_name(c, prelude, name) })
   }
 }
 
@@ -1573,7 +1583,7 @@ fn infer_pattern(
       )
 
       // Create the list type
-      let typ = NamedType(builtin, "List", [elem_type])
+      let typ = NamedType(prelude, "List", [elem_type])
 
       // Handle the tail pattern if present
       use #(c, n, tail) <- result.map(case tail {
@@ -1705,27 +1715,28 @@ fn infer_pattern(
         list.map(arguments, fn(arg) {
           case arg {
             g.LabelledField(label:, label_location:, item:) ->
-              LabelledField(label, label_location, item)
+              LabelledField(item, label, label_location)
             g.ShorthandField(label:, location:) ->
-              LabelledField(label, location, g.PatternVariable(location, label))
+              ShorthandField(
+                g.PatternVariable(location, label),
+                label,
+                location,
+              )
             g.UnlabelledField(item:) -> UnlabelledField(item)
           }
         })
       use #(c, n, arguments) <- result.try(infer_pattern_fields(c, n, arguments))
 
       // handle labels
-      use #(c, ordered_arguments) <- result.try(case with_spread {
+      use #(c, positional_arguments) <- result.try(case with_spread {
         True -> {
           let #(c, args) =
             match_labels_optional(arguments, labels)
             |> list.fold(#(c, []), fn(acc, opt) {
               let #(c, opts) = acc
               let #(c, opt) = case opt {
-                Some(opt) -> #(c, opt)
-                None -> {
-                  let #(c, typ) = new_type_var_ref(c)
-                  #(c, UnlabelledField(PatternDiscard(typ, location, "")))
-                }
+                Some(opt) -> #(c, Some(opt.item))
+                None -> #(c, None)
               }
               #(c, [opt, ..opts])
             })
@@ -1733,10 +1744,18 @@ fn infer_pattern(
         }
         False -> {
           use args <- result.map(match_labels(c, arguments, labels))
+          let args = list.map(args, fn(arg) { Some(arg.item) })
           #(c, args)
         }
       })
-      let arg_types = list.map(ordered_arguments, fn(x) { field_item(x).typ })
+
+      let #(c, arg_types) =
+        list.map_fold(positional_arguments, c, fn(c, x) {
+          case x {
+            Some(p) -> #(c, p.typ)
+            None -> new_type_var_ref(c)
+          }
+        })
 
       // handle 0 parameter variants are not functions
       use #(c, typ) <- result.map(case arg_types {
@@ -1757,7 +1776,7 @@ fn infer_pattern(
           module:,
           constructor:,
           arguments:,
-          ordered_arguments:,
+          positional_arguments:,
           resolved_module:,
           with_spread:,
         )
@@ -2096,7 +2115,7 @@ fn infer_expression(
 
       // Create a type variable for the element type
       let #(c, elem_type) = new_type_var_ref(c)
-      let typ = NamedType(builtin, "List", [elem_type])
+      let typ = NamedType(prelude, "List", [elem_type])
 
       // Unify all element types
       use c <- result.try(
@@ -2144,7 +2163,10 @@ fn infer_expression(
             None -> g.Variable(location, field.label)
           }
           use #(c, value) <- result.map(infer_expression(c, n, item))
-          #(c, [RecordUpdateField(label: field.label, item: Some(value)), ..updated_fields])
+          #(c, [
+            RecordUpdateField(label: field.label, item: Some(value)),
+            ..updated_fields
+          ])
         }),
       )
       let updated_fields = list.reverse(updated_fields)
@@ -2152,44 +2174,35 @@ fn infer_expression(
       let fields =
         list.map(updated_fields, fn(x) {
           let assert Some(expr) = x.item
-          LabelledField(x.label, Span(0, 0), expr)
+          LabelledField(expr, x.label, Span(0, 0))
         })
-      let ordered_fields = match_labels_optional(fields, labels)
-      use ordered_fields <- result.try(
-        list.strict_zip(ordered_fields, list.zip(labels, constructor_args))
+      let positional_fields = match_labels_optional(fields, labels)
+      use positional_fields <- result.try(
+        list.strict_zip(positional_fields, list.zip(labels, constructor_args))
         |> result.map_error(fn(_) {
           WrongArity(
             context_location(c),
             list.length(constructor_args),
-            list.length(ordered_fields),
+            list.length(positional_fields),
           )
         }),
       )
 
-      use #(c, ordered_fields) <- result.map(
-        list.try_fold(ordered_fields, #(c, []), fn(acc, x) {
+      use #(c, positional_fields) <- result.map(
+        list.try_fold(positional_fields, #(c, []), fn(acc, x) {
           let #(c, fields) = acc
           let #(given, #(param_label, expected)) = x
           use #(c, result) <- result.map(case given {
             Some(e) -> {
-              let expr = field_item(e)
-              let label = case e {
-                LabelledField(label, _, _) -> label
-                ShorthandField(label:, ..) -> label
-                UnlabelledField(_) -> ""
-              }
-              use c <- result.map(unify(c, expr.typ, expected))
-              #(c, UpdatedField(typ: expr.typ, label: label, value: expr))
+              use c <- result.map(unify(c, e.item.typ, expected))
+              #(c, UpdatedField(e.item))
             }
-            None -> {
-              let label = option.unwrap(param_label, "")
-              Ok(#(c, OriginalField(typ: expected, label: label)))
-            }
+            None -> Ok(#(c, UnchangedField(expected)))
           })
           #(c, [result, ..fields])
         }),
       )
-      let ordered_fields = list.reverse(ordered_fields)
+      let positional_fields = list.reverse(positional_fields)
 
       // The result type is the same as the constructor type
       let typ = constructor_ret
@@ -2204,7 +2217,7 @@ fn infer_expression(
           constructor: constructor,
           record: base_expr,
           fields: updated_fields,
-          ordered_fields: ordered_fields,
+          positional_fields: positional_fields,
         )
 
       #(c, record_update)
@@ -2240,12 +2253,12 @@ fn infer_expression(
         let field =
           variant.fields
           |> list.index_map(fn(x, i) { #(x, i) })
-          |> list.find(fn(x) { field_label(x.0) == Some(label) })
+          |> list.find(fn(x) { variant_field_label(x.0) == Some(label) })
           |> result.replace_error(FieldNotFound(context_location(c), label))
         use #(field, index) <- result.try(field)
 
         // create a getter function type
-        let getter = FunctionType([typ.typ], field_item(field).typ)
+        let getter = FunctionType([typ.typ], field.item.typ)
         let getter = Poly(typ.vars, getter)
         let #(c, getter) = instantiate(c, getter)
 
@@ -2296,9 +2309,9 @@ fn infer_expression(
         list.map(arguments, fn(arg) {
           case arg {
             g.LabelledField(label:, label_location:, item:) ->
-              LabelledField(label, label_location, item)
+              LabelledField(item, label, label_location)
             g.ShorthandField(label:, location:) ->
-              LabelledField(label, location, g.Variable(location, label))
+              ShorthandField(g.Variable(location, label), label, location)
             g.UnlabelledField(item:) -> UnlabelledField(item)
           }
         })
@@ -2313,13 +2326,13 @@ fn infer_expression(
       use #(c, arguments) <- result.try(
         list.try_fold(hinted_args, #(c, []), fn(acc, hinted_arg) {
           let #(c, done) = acc
-          let #(hint, field_arg) = hinted_arg
+          let #(hint, field) = hinted_arg
 
           // give type hint when arg is a fn
-          let result = case field_item(field_arg) {
+          let result = case field.item {
             g.Fn(location:, arguments:, return_annotation:, body:) ->
               infer_fn(c, n, location, arguments, return_annotation, body, hint)
-            _ -> infer_expression(c, n, field_item(field_arg))
+            _ -> infer_expression(c, n, field.item)
           }
           use #(c, inferred_arg) <- result.try(result)
 
@@ -2328,21 +2341,21 @@ fn infer_expression(
             None -> Ok(c)
           })
 
-          #(c, [map_field(field_arg, fn(_) { inferred_arg }), ..done])
+          #(c, [map_field(field, fn(_) { inferred_arg }), ..done])
         }),
       )
       let arguments = list.reverse(arguments)
 
       // reorder to positional order via label matching
-      use ordered_fields <- result.try(match_labels(c, arguments, labels))
+      use positional_fields <- result.try(match_labels(c, arguments, labels))
 
-      let arg_types = list.map(ordered_fields, fn(f) { field_item(f).typ })
-      let ordered_arguments = list.map(ordered_fields, field_item)
+      let arg_types = list.map(positional_fields, fn(f) { f.item.typ })
+      let positional_arguments = list.map(positional_fields, fn(f) { f.item })
 
       // unify the function type with the types of args
       let #(c, typ) = new_type_var_ref(c)
       use c <- result.map(unify(c, fun.typ, FunctionType(arg_types, typ)))
-      #(c, Call(typ, span, fun, arguments, ordered_arguments))
+      #(c, Call(typ, span, fun, arguments, positional_arguments))
     }
     g.TupleIndex(location:, tuple:, index:) -> {
       use #(c, tuple) <- result.try(infer_expression(c, n, tuple))
@@ -2922,10 +2935,17 @@ fn substitute_custom_type(c: Context, custom_type: CustomType) {
       Variant(
         ..variant,
         typ: substitute_poly(c, rename, variant.typ),
-        fields: list.map(
-          variant.fields,
-          map_field(_, substitute_annotation(c, rename, _)),
-        ),
+        fields: list.map(variant.fields, fn(f) {
+          case f {
+            LabelledVariantField(item, label) ->
+              LabelledVariantField(
+                substitute_annotation(c, rename, item),
+                label,
+              )
+            UnlabelledVariantField(item) ->
+              UnlabelledVariantField(substitute_annotation(c, rename, item))
+          }
+        }),
       )
     }),
   )
@@ -3110,7 +3130,7 @@ fn substitute_expression(
       constructor:,
       record:,
       fields:,
-      ordered_fields:,
+      positional_fields:,
     ) ->
       RecordUpdate(
         typ: substitute_type(c, rename, typ),
@@ -3121,18 +3141,17 @@ fn substitute_expression(
         record: substitute_expression(c, rename, record),
         fields: list.map(fields, fn(field) {
           let assert Some(expr) = field.item
-          RecordUpdateField(..field, item: Some(substitute_expression(c, rename, expr)))
+          RecordUpdateField(
+            ..field,
+            item: Some(substitute_expression(c, rename, expr)),
+          )
         }),
-        ordered_fields: list.map(ordered_fields, fn(field) {
+        positional_fields: list.map(positional_fields, fn(field) {
           case field {
-            UpdatedField(typ:, label:, value:) ->
-              UpdatedField(
-                typ: substitute_type(c, rename, typ),
-                label: label,
-                value: substitute_expression(c, rename, value),
-              )
-            OriginalField(typ:, label:) ->
-              OriginalField(typ: substitute_type(c, rename, typ), label: label)
+            UpdatedField(expr) ->
+              UpdatedField(substitute_expression(c, rename, expr))
+            UnchangedField(typ) ->
+              UnchangedField(substitute_type(c, rename, typ))
           }
         }),
       )
@@ -3154,7 +3173,7 @@ fn substitute_expression(
         label:,
         index:,
       )
-    Call(typ:, location:, function:, arguments:, ordered_arguments:) ->
+    Call(typ:, location:, function:, arguments:, positional_arguments:) ->
       Call(
         typ: substitute_type(c, rename, typ),
         location:,
@@ -3163,11 +3182,10 @@ fn substitute_expression(
           arguments,
           map_field(_, substitute_expression(c, rename, _)),
         ),
-        ordered_arguments: list.map(ordered_arguments, substitute_expression(
-          c,
-          rename,
-          _,
-        )),
+        positional_arguments: list.map(
+          positional_arguments,
+          substitute_expression(c, rename, _),
+        ),
       )
     TupleIndex(typ:, location:, tuple:, index:) ->
       TupleIndex(
@@ -3313,7 +3331,7 @@ fn substitute_pattern(
       arguments:,
       with_spread:,
       resolved_module:,
-      ordered_arguments:,
+      positional_arguments:,
     ) ->
       PatternVariant(
         typ: substitute_type(c, rename, typ),
@@ -3326,9 +3344,9 @@ fn substitute_pattern(
         ),
         with_spread:,
         resolved_module:,
-        ordered_arguments: list.map(
-          ordered_arguments,
-          map_field(_, substitute_pattern(c, rename, _)),
+        positional_arguments: list.map(
+          positional_arguments,
+          option.map(_, substitute_pattern(c, rename, _)),
         ),
       )
   }
@@ -3400,11 +3418,21 @@ fn substitute_annotation(
 
 fn map_field(field: Field(a), func: fn(a) -> b) -> Field(b) {
   case field {
-    LabelledField(label, label_location, item) ->
-      LabelledField(label, label_location, func(item))
-    ShorthandField(label, location, item) ->
-      ShorthandField(label, location, func(item))
+    LabelledField(item:, label:, label_location:) ->
+      LabelledField(func(item), label, label_location)
+    ShorthandField(item:, label:, location:) ->
+      ShorthandField(func(item), label, location)
     UnlabelledField(item) -> UnlabelledField(func(item))
+  }
+}
+
+fn map_variant_field(
+  field: VariantField(a),
+  func: fn(a) -> b,
+) -> VariantField(b) {
+  case field {
+    LabelledVariantField(item, label) -> LabelledVariantField(func(item), label)
+    UnlabelledVariantField(item) -> UnlabelledVariantField(func(item))
   }
 }
 
@@ -3416,7 +3444,7 @@ fn infer_pattern_fields(
   use #(c, n, fields) <- result.map(
     list.try_fold(fields, #(c, n, []), fn(acc, field) {
       let #(c, n, done) = acc
-      use #(c, n, inferred) <- result.map(infer_pattern(c, n, field_item(field)))
+      use #(c, n, inferred) <- result.map(infer_pattern(c, n, field.item))
       #(c, n, [map_field(field, fn(_) { inferred }), ..done])
     }),
   )
@@ -3482,19 +3510,18 @@ fn build_arg_hints(
   list.reverse(hinted_reversed)
 }
 
-fn field_label(field: Field(a)) -> Option(String) {
+fn variant_field_label(field: VariantField(t)) -> Option(String) {
   case field {
-    LabelledField(label, ..) -> Some(label)
-    ShorthandField(label, ..) -> Some(label)
-    UnlabelledField(..) -> None
+    LabelledVariantField(_, label) -> Some(label)
+    UnlabelledVariantField(_) -> None
   }
 }
 
-fn field_item(field: Field(a)) -> a {
+fn field_label(field: Field(a)) -> Option(String) {
   case field {
-    LabelledField(_, _, item) -> item
-    ShorthandField(_, _, item) -> item
-    UnlabelledField(item) -> item
+    LabelledField(..) -> Some(field.label)
+    ShorthandField(..) -> Some(field.label)
+    UnlabelledField(..) -> None
   }
 }
 

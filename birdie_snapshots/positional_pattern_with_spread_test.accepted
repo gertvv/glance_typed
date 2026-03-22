@@ -53,17 +53,12 @@ functions:
           type: "test.Triple(0)"
           constructor: Triple
           with_spread: true
-          ordered_arguments:
-          - pattern:
-              kind: variable_pattern
-              type: "0"
-              name: x
-          - pattern:
-              kind: discard_pattern
-              type: "0"
-          - pattern:
-              kind: discard_pattern
-              type: "0"
+          positional_arguments:
+          - kind: variable_pattern
+            type: "0"
+            name: x
+          - kind: none
+          - kind: none
           resolved_module: test
       body:
         kind: local_variable

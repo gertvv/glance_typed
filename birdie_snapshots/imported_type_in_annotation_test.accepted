@@ -27,7 +27,7 @@ functions:
       type: "fn(gleam.Int) -> gleam/option.Option(gleam.Int)"
       module: "gleam/option"
       name: Some
-    arguments:
+    positional_arguments:
     - kind: local_variable
       type: "gleam.Int"
       name: x

@@ -3,6 +3,7 @@ import glance
 import glance_typed as typed
 import glance_typed_yaml
 import gleam/dict
+import gleam/list
 import gleeunit
 
 pub fn main() {
@@ -981,6 +982,202 @@ pub fn record_update_shorthand_test() {
     ",
   )
   |> birdie.snap(title: "record update shorthand test")
+}
+
+pub fn call_args_positional_test() {
+  infer_yaml_with_prelude(
+    "
+    pub fn add(x: Int, y: Int, z: Int) -> Int { x }
+    pub fn main() { add(1, 2, 3) }
+    ",
+  )
+  |> birdie.snap(title: "call args positional test")
+}
+
+pub fn constructor_call_positional_test() {
+  infer_yaml_with_prelude(
+    "
+    pub type Point { Point(x: Int, y: Int, z: Int) }
+    pub fn main() { Point(1, 2, 3) }
+    ",
+  )
+  |> birdie.snap(title: "constructor call positional test")
+}
+
+pub fn pattern_variant_positional_test() {
+  infer_yaml_with_prelude(
+    "
+    pub type Point { Point(x: Int, y: Int, z: Int) }
+    pub fn get_x(p: Point) {
+      let Point(x, y, z) = p
+      x
+    }
+    ",
+  )
+  |> birdie.snap(title: "pattern variant positional test")
+}
+
+pub fn constructor_call_args_out_of_order_test() {
+  infer_yaml_with_prelude(
+    "
+    pub type Point { Point(x: Int, y: Int, z: Int) }
+    pub fn main() { Point(z: 3, x: 1, y: 2) }
+    ",
+  )
+  |> birdie.snap(title: "constructor call args out of order test")
+}
+
+pub fn pattern_variant_args_out_of_order_test() {
+  infer_yaml_with_prelude(
+    "
+    pub type Point { Point(x: Int, y: Int, z: Int) }
+    pub fn get_x(p: Point) {
+      let Point(z: _, y: _, x: x) = p
+      x
+    }
+    ",
+  )
+  |> birdie.snap(title: "pattern variant args out of order test")
+}
+
+pub fn record_update_fields_out_of_order_test() {
+  infer_yaml_with_prelude(
+    "
+    pub type Point { Point(x: Int, y: Int, z: Int) }
+    pub fn reset(p: Point, a: Int, b: Int, c: Int) {
+      Point(..p, z: c, x: a, y: b)
+    }
+    ",
+  )
+  |> birdie.snap(title: "record update fields out of order test")
+}
+
+pub fn call_args_original_order_test() {
+  let module =
+    infer_with_prelude(
+      "
+      pub fn add(x x: Int, y y: Int, z z: Int) -> Int { x }
+      pub fn main() { add(z: 3, x: 1, y: 2) }
+      ",
+    )
+  let assert Ok(main_def) =
+    list.find(module.functions, fn(d) { d.definition.name == "main" })
+  let assert [typed.Expression(expression: call, ..)] = main_def.definition.body
+  let assert typed.Call(arguments:, ..) = call
+
+  let labels =
+    list.map(arguments, fn(arg) {
+      case arg {
+        typed.LabelledField(..) -> arg.label
+        typed.ShorthandField(..) -> arg.label
+        typed.UnlabelledField(..) -> ""
+      }
+    })
+  let assert ["z", "x", "y"] = labels
+}
+
+pub fn pattern_variant_args_original_order_test() {
+  let module =
+    infer_with_prelude(
+      "
+      pub type Point { Point(x: Int, y: Int, z: Int) }
+      pub fn get_x(p: Point) {
+        let Point(z: _, y: _, x: x) = p
+        x
+      }
+      ",
+    )
+  let assert Ok(get_x_def) =
+    list.find(module.functions, fn(d) { d.definition.name == "get_x" })
+  let assert [typed.Assignment(pattern: pattern, ..), ..] =
+    get_x_def.definition.body
+  let assert typed.PatternVariant(arguments:, ..) = pattern
+
+  let labels =
+    list.filter_map(arguments, fn(arg) {
+      case arg {
+        typed.LabelledField(..) -> Ok(arg.label)
+        typed.ShorthandField(..) -> Ok(arg.label)
+        typed.UnlabelledField(..) -> Error(Nil)
+      }
+    })
+  let assert ["z", "y", "x"] = labels
+}
+
+pub fn record_update_fields_original_order_test() {
+  let module =
+    infer_with_prelude(
+      "
+      pub type Point { Point(x: Int, y: Int, z: Int) }
+      pub fn reset(p: Point, a: Int, b: Int, c: Int) {
+        Point(..p, z: c, x: a, y: b)
+      }
+      ",
+    )
+  let assert Ok(reset_def) =
+    list.find(module.functions, fn(d) { d.definition.name == "reset" })
+  let assert [typed.Expression(expression: rec_update, ..)] =
+    reset_def.definition.body
+  let assert typed.RecordUpdate(fields:, ..) = rec_update
+
+  let labels =
+    list.map(fields, fn(f) {
+      let typed.RecordUpdateField(label:, ..) = f
+      label
+    })
+  let assert ["z", "x", "y"] = labels
+}
+
+pub fn call_args_shorthand_preserved_test() {
+  let module =
+    infer_with_prelude(
+      "
+      pub fn add(x x: Int, y y: Int) -> Int { x }
+      pub fn main(x: Int, y: Int) { add(x:, y:) }
+      ",
+    )
+  let assert Ok(main_def) =
+    list.find(module.functions, fn(d) { d.definition.name == "main" })
+  let assert [typed.Expression(expression: call, ..)] = main_def.definition.body
+  let assert typed.Call(arguments:, ..) = call
+
+  let kinds =
+    list.map(arguments, fn(arg) {
+      case arg {
+        typed.LabelledField(..) -> "labelled"
+        typed.ShorthandField(..) -> "shorthand"
+        typed.UnlabelledField(..) -> "unlabelled"
+      }
+    })
+  let assert ["shorthand", "shorthand"] = kinds
+}
+
+pub fn pattern_variant_shorthand_preserved_test() {
+  let module =
+    infer_with_prelude(
+      "
+      pub type Point { Point(x: Int, y: Int) }
+      pub fn get(p: Point) {
+        let Point(x:, y:) = p
+        x
+      }
+      ",
+    )
+  let assert Ok(get_def) =
+    list.find(module.functions, fn(d) { d.definition.name == "get" })
+  let assert [typed.Assignment(pattern: pattern, ..), ..] =
+    get_def.definition.body
+  let assert typed.PatternVariant(arguments:, ..) = pattern
+
+  let kinds =
+    list.map(arguments, fn(arg) {
+      case arg {
+        typed.LabelledField(..) -> "labelled"
+        typed.ShorthandField(..) -> "shorthand"
+        typed.UnlabelledField(..) -> "unlabelled"
+      }
+    })
+  let assert ["shorthand", "shorthand"] = kinds
 }
 
 pub fn use_imported_constant_test() {

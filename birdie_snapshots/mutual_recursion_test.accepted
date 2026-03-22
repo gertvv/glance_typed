@@ -42,7 +42,7 @@ functions:
           type: "fn(gleam.Int) -> gleam.Int"
           module: test
           name: count_even
-        arguments:
+        positional_arguments:
         - kind: binary_operator
           type: "gleam.Int"
           name: -
@@ -89,7 +89,7 @@ functions:
           type: "fn(gleam.Int) -> gleam.Int"
           module: test
           name: count_odd
-        arguments:
+        positional_arguments:
         - kind: binary_operator
           type: "gleam.Int"
           name: -

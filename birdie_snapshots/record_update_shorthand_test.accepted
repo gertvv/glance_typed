@@ -49,13 +49,9 @@ functions:
       kind: local_variable
       type: "test.Point(0)"
       name: p
-    fields:
-    - type: "0"
-      label: x
-      value:
-        kind: local_variable
-        type: "0"
-        name: x
-    - type: "0"
-      label: y
+    positional_arguments:
+    - kind: local_variable
+      type: "0"
+      name: x
+    - unchanged: "0"
 

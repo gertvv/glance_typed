@@ -22,7 +22,7 @@ functions:
       kind: local_variable
       type: "fn(0) -> 1"
       name: f
-    arguments:
+    positional_arguments:
     - kind: local_variable
       type: "0"
       name: x

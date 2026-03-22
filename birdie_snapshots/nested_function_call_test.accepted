@@ -28,14 +28,14 @@ functions:
       kind: local_variable
       type: "fn(gleam.Int) -> gleam.Int"
       name: f
-    arguments:
+    positional_arguments:
     - kind: call
       type: "gleam.Int"
       function:
         kind: local_variable
         type: "fn(gleam.Int) -> gleam.Int"
         name: f
-      arguments:
+      positional_arguments:
       - kind: local_variable
         type: "gleam.Int"
         name: x

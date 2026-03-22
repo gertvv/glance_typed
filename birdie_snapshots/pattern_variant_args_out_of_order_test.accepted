@@ -1,8 +1,8 @@
 ---
 version: 1.5.4
-title: record update multiple fields test
+title: pattern variant args out of order test
 file: ./test/glance_typed_test.gleam
-test_name: record_update_multiple_fields_test
+test_name: pattern_variant_args_out_of_order_test
 ---
 ---
 name: test
@@ -28,8 +28,8 @@ types:
         annotation: Int
         type: "gleam.Int"
 functions:
-- name: reset
-  type: "() fn(test.Point) -> test.Point"
+- name: get_x
+  type: "() fn(test.Point) -> gleam.Int"
   publicity: public
   parameters:
   - type: "test.Point"
@@ -38,20 +38,28 @@ functions:
       annotation: Point
       type: "test.Point"
   body:
-  - kind: record_update
+  - kind: assignment
     type: "test.Point"
-    module: test
-    constructor: Point
-    record:
+    assignment_kind: let
+    pattern:
+      kind: constructor_pattern
+      type: "test.Point"
+      constructor: Point
+      with_spread: false
+      positional_arguments:
+      - kind: variable_pattern
+        type: "gleam.Int"
+        name: x
+      - kind: discard_pattern
+        type: "gleam.Int"
+      - kind: discard_pattern
+        type: "gleam.Int"
+      resolved_module: test
+    value:
       kind: local_variable
       type: "test.Point"
       name: p
-    positional_arguments:
-    - kind: int_literal
-      type: "gleam.Int"
-      value: "0"
-    - kind: int_literal
-      type: "gleam.Int"
-      value: "0"
-    - unchanged: "gleam.Int"
+  - kind: local_variable
+    type: "gleam.Int"
+    name: x
 

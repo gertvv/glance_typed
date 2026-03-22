@@ -40,11 +40,10 @@ functions:
       type: "test.Wrapper(0)"
       constructor: Wrapper
       with_spread: false
-      ordered_arguments:
-      - pattern:
-          kind: variable_pattern
-          type: "0"
-          name: v
+      positional_arguments:
+      - kind: variable_pattern
+        type: "0"
+        name: v
       resolved_module: test
     value:
       kind: local_variable

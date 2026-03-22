@@ -42,7 +42,7 @@ functions:
           type: "fn(gleam.Int) -> gleam.Int"
           module: test
           name: countdown
-        arguments:
+        positional_arguments:
         - kind: binary_operator
           type: "gleam.Int"
           name: -

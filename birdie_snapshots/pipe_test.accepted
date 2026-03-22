@@ -21,7 +21,7 @@ functions:
       type: "fn(gleam.Int) -> gleam.Int"
       module: test
       name: double
-    arguments:
+    positional_arguments:
     - kind: int_literal
       type: "gleam.Int"
       value: "5"

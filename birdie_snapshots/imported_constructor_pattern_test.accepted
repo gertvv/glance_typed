@@ -27,11 +27,10 @@ functions:
           type: "gleam/option.Option(gleam.Int)"
           constructor: Some
           with_spread: false
-          ordered_arguments:
-          - pattern:
-              kind: variable_pattern
-              type: "gleam.Int"
-              name: n
+          positional_arguments:
+          - kind: variable_pattern
+            type: "gleam.Int"
+            name: n
           resolved_module: "gleam/option"
       body:
         kind: call
@@ -41,7 +40,7 @@ functions:
           type: "fn(gleam.Int) -> gleam/option.Option(gleam.Int)"
           module: "gleam/option"
           name: Some
-        arguments:
+        positional_arguments:
         - kind: binary_operator
           type: "gleam.Int"
           name: "*"

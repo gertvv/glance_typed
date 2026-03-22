@@ -45,11 +45,10 @@ functions:
           type: "test.Box(0)"
           constructor: Box
           with_spread: false
-          ordered_arguments:
-          - pattern:
-              kind: variable_pattern
-              type: "0"
-              name: v
+          positional_arguments:
+          - kind: variable_pattern
+            type: "0"
+            name: v
           resolved_module: test
       body:
         kind: local_variable

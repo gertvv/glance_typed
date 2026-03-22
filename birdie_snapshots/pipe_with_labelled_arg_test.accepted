@@ -18,7 +18,7 @@ functions:
       type: "fn(gleam.String, gleam.Int) -> 0"
       module: test
       name: write
-    arguments:
+    positional_arguments:
     - kind: string_literal
       type: "gleam.String"
       value: foo

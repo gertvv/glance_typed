@@ -41,7 +41,7 @@ functions:
         type: "fn(test.Foo(gleam.Int)) -> test.Foo(test.Foo(gleam.Int))"
         module: test
         name: Foo
-      arguments:
+      positional_arguments:
       - kind: call
         type: "test.Foo(gleam.Int)"
         function:
@@ -49,7 +49,7 @@ functions:
           type: "fn(gleam.Int) -> test.Foo(gleam.Int)"
           module: test
           name: Foo
-        arguments:
+        positional_arguments:
         - kind: int_literal
           type: "gleam.Int"
           value: "1"

@@ -18,7 +18,7 @@ functions:
       type: "fn(fn(gleam.Int) -> gleam.Int) -> gleam.Int"
       module: test
       name: with_value
-    arguments:
+    positional_arguments:
     - kind: fn
       type: "fn(gleam.Int) -> gleam.Int"
       parameters:
@@ -58,7 +58,7 @@ functions:
       kind: local_variable
       type: "fn(gleam.Int) -> 0"
       name: callback
-    arguments:
+    positional_arguments:
     - kind: int_literal
       type: "gleam.Int"
       value: "42"
