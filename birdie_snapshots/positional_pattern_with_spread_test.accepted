@@ -57,8 +57,8 @@ functions:
           - kind: variable_pattern
             type: "0"
             name: x
-          - kind: none
-          - kind: none
+          - unmatched: "0"
+          - unmatched: "0"
           resolved_module: test
       body:
         kind: local_variable

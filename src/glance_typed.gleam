@@ -167,7 +167,7 @@ pub type Pattern {
     arguments: List(Field(Pattern)),
     with_spread: Bool,
     resolved_module: String,
-    positional_arguments: List(Option(Pattern)),
+    positional_arguments: List(PatternVariantPositionalArgument),
   )
 }
 
@@ -178,6 +178,11 @@ pub type RecordUpdateField(t) {
 pub type RecordUpdatePositionalField {
   UpdatedField(expression: Expression)
   UnchangedField(typ: Type)
+}
+
+pub type PatternVariantPositionalArgument {
+  MatchedArgument(pattern: Pattern)
+  UnmatchedArgument(typ: Type)
 }
 
 pub type Expression {
@@ -1749,13 +1754,17 @@ fn infer_pattern(
         }
       })
 
-      let #(c, arg_types) =
+      let #(c, tagged_arguments) =
         list.map_fold(positional_arguments, c, fn(c, x) {
           case x {
-            Some(p) -> #(c, p.typ)
-            None -> new_type_var_ref(c)
+            Some(p) -> #(c, #(Some(p), p.typ))
+            None -> {
+              let #(c, tv) = new_type_var_ref(c)
+              #(c, #(None, tv))
+            }
           }
         })
+      let arg_types = list.map(tagged_arguments, fn(x) { x.1 })
 
       // handle 0 parameter variants are not functions
       use #(c, typ) <- result.map(case arg_types {
@@ -1768,6 +1777,14 @@ fn infer_pattern(
           #(c, typ)
         }
       })
+
+      let positional_arguments =
+        list.map(tagged_arguments, fn(x) {
+          case x {
+            #(Some(p), _) -> MatchedArgument(p)
+            #(None, tv) -> UnmatchedArgument(resolve_type(c, tv))
+          }
+        })
 
       let pattern =
         PatternVariant(
@@ -2191,7 +2208,7 @@ fn infer_expression(
       use #(c, positional_fields) <- result.map(
         list.try_fold(positional_fields, #(c, []), fn(acc, x) {
           let #(c, fields) = acc
-          let #(given, #(param_label, expected)) = x
+          let #(given, #(_param_label, expected)) = x
           use #(c, result) <- result.map(case given {
             Some(e) -> {
               use c <- result.map(unify(c, e.item.typ, expected))
@@ -3344,10 +3361,14 @@ fn substitute_pattern(
         ),
         with_spread:,
         resolved_module:,
-        positional_arguments: list.map(
-          positional_arguments,
-          option.map(_, substitute_pattern(c, rename, _)),
-        ),
+        positional_arguments: list.map(positional_arguments, fn(arg) {
+          case arg {
+            MatchedArgument(p) ->
+              MatchedArgument(substitute_pattern(c, rename, p))
+            UnmatchedArgument(typ) ->
+              UnmatchedArgument(substitute_type(c, rename, typ))
+          }
+        }),
       )
   }
 }
@@ -3423,16 +3444,6 @@ fn map_field(field: Field(a), func: fn(a) -> b) -> Field(b) {
     ShorthandField(item:, label:, location:) ->
       ShorthandField(func(item), label, location)
     UnlabelledField(item) -> UnlabelledField(func(item))
-  }
-}
-
-fn map_variant_field(
-  field: VariantField(a),
-  func: fn(a) -> b,
-) -> VariantField(b) {
-  case field {
-    LabelledVariantField(item, label) -> LabelledVariantField(func(item), label)
-    UnlabelledVariantField(item) -> UnlabelledVariantField(func(item))
   }
 }
 

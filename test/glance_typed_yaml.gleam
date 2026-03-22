@@ -567,8 +567,9 @@ fn pattern_to_yaml(pattern: typed.Pattern) -> cymbal.Yaml {
           "positional_arguments",
           yaml_list(positional_arguments, fn(f) {
             case f {
-              Some(pattern) -> pattern_to_yaml(pattern)
-              None -> cymbal.block([#("kind", cymbal.string("none"))])
+              typed.MatchedArgument(pattern) -> pattern_to_yaml(pattern)
+              typed.UnmatchedArgument(typ) ->
+                cymbal.block([#("unmatched", type_to_yaml(typ))])
             }
           }),
         ),
