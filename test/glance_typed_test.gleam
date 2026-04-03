@@ -778,6 +778,22 @@ pub fn use_statement_test() {
   |> birdie.snap(title: "use statement test")
 }
 
+pub fn use_patterns_test() {
+  infer_yaml_with_prelude(
+    "
+    fn with_square(n: Int, callback: fn(#(Int, Int), String) -> a) -> a {
+      callback(#(2, n * n), \"square\")
+    }
+
+    pub fn f() {
+      use #(_, square), _ <- with_square(3)
+      square
+    }
+    ",
+  )
+  |> birdie.snap(title: "use patterns test")
+}
+
 pub fn pattern_assignment_test() {
   infer_yaml(
     "
