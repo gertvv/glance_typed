@@ -11,16 +11,14 @@ functions:
   type: "(0) fn() -> 0"
   publicity: public
   body:
-  - kind: binary_operator
+  - kind: pipe
     type: "0"
-    name: "|>"
     left:
       kind: int_literal
       type: "gleam.Int"
       value: "123"
     right:
       kind: fn_capture
-      type: "fn(gleam.String, gleam.Int) -> 0"
       function:
         kind: function
         type: "fn(gleam.String, gleam.Int) -> 0"

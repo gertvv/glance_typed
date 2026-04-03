@@ -276,6 +276,17 @@ pub type Expression {
     left: Expression,
     right: Expression,
   )
+  Pipe(typ: Type, location: Span, left: Expression, right: PipeInto)
+}
+
+pub type PipeInto {
+  PipeIntoEcho(message: Option(Expression))
+  PipeIntoFnCapture(
+    label: Option(String),
+    function: Expression,
+    arguments_before: List(Field(Expression)),
+    arguments_after: List(Field(Expression)),
+  )
 }
 
 pub type Clause {
@@ -2615,16 +2626,12 @@ fn infer_expression(
       let #(before, after) = list.split(arguments, idx)
       let assert #([left], after) = list.split(after, 1)
       let left = left.item
-      let right =
-        FnCapture(
-          function.typ,
-          function.location,
-          label,
-          function,
-          before,
-          after,
-        )
-      #(c, BinaryOperator(typ:, location:, name: g.Pipe, left:, right:))
+      let right = case function {
+        Fn(_, _, [_], _, [Expression(expression: Echo(message:, ..), ..)]) ->
+          PipeIntoEcho(message)
+        _ -> PipeIntoFnCapture(label, function, before, after)
+      }
+      #(c, Pipe(typ:, location:, left:, right:))
     }
     g.BinaryOperator(location:, name:, left:, right:) -> {
       let #(c, fun_typ) = case name {
@@ -3332,6 +3339,39 @@ fn substitute_expression(
         name:,
         left: substitute_expression(c, rename, left),
         right: substitute_expression(c, rename, right),
+      )
+    Pipe(typ:, location:, left:, right:) ->
+      Pipe(
+        typ: substitute_type(c, rename, typ),
+        location:,
+        left: substitute_expression(c, rename, left),
+        right: substitute_pipe_into(c, rename, right),
+      )
+  }
+}
+
+fn substitute_pipe_into(
+  c: Context,
+  rename: Dict(TypeVarId, TypeVarId),
+  right: PipeInto,
+) -> PipeInto {
+  case right {
+    PipeIntoEcho(message:) ->
+      PipeIntoEcho(
+        message: option.map(message, substitute_expression(c, rename, _)),
+      )
+    PipeIntoFnCapture(label:, function:, arguments_before:, arguments_after:) ->
+      PipeIntoFnCapture(
+        label:,
+        function: substitute_expression(c, rename, function),
+        arguments_before: list.map(
+          arguments_before,
+          map_field(_, substitute_expression(c, rename, _)),
+        ),
+        arguments_after: list.map(
+          arguments_after,
+          map_field(_, substitute_expression(c, rename, _)),
+        ),
       )
   }
 }
