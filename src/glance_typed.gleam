@@ -2569,29 +2569,62 @@ fn infer_expression(
       Ok(#(c, Case(typ:, location:, subjects:, clauses:)))
     }
     g.BinaryOperator(span, g.Pipe, left, right) -> {
-      // TODO return a not-desugared version
-      case right {
+      // first infer a desugared version of the pipe
+      let #(idx, label, desugared) = case right {
         g.Call(span, fun, args) -> {
           let call = g.Call(span, fun, [g.UnlabelledField(left), ..args])
-          infer_expression(c, n, call)
+          #(0, None, infer_expression(c, n, call))
         }
         g.FnCapture(span, label, fun, before, after) -> {
           let args = case label {
             Some(label) -> [before, [g.LabelledField(label, span, left)], after]
             None -> [before, [g.UnlabelledField(left)], after]
           }
-          infer_expression(c, n, g.Call(span, fun, list.flatten(args)))
+          #(
+            list.length(before),
+            label,
+            infer_expression(c, n, g.Call(span, fun, list.flatten(args))),
+          )
         }
-        g.Echo(location: span, expression: None, ..) -> {
-          let echo_ = g.Variable(span, "echo_")
-          let pipe = g.BinaryOperator(span, g.Pipe, left, echo_)
-          infer_expression(c, n, pipe)
+        g.Echo(location: span, expression: None, message:) -> {
+          let echo_ =
+            g.Fn(span, [g.FnParameter(g.Named("value"), None)], None, [
+              g.Expression(g.Echo(
+                span,
+                Some(g.Variable(span, "value")),
+                message,
+              )),
+            ])
+          let call = g.Call(span, echo_, [g.UnlabelledField(left)])
+          #(0, None, infer_expression(c, n, call))
         }
         _ -> {
           let call = g.Call(span, right, [g.UnlabelledField(left)])
-          infer_expression(c, n, call)
+          #(0, None, infer_expression(c, n, call))
         }
       }
+      // then re-sugar it
+      use #(c, desugared) <- result.map(desugared)
+      let assert Call(
+        typ:,
+        location:,
+        function:,
+        arguments:,
+        positional_arguments: _,
+      ) = desugared
+      let #(before, after) = list.split(arguments, idx)
+      let assert #([left], after) = list.split(after, 1)
+      let left = left.item
+      let right =
+        FnCapture(
+          function.typ,
+          function.location,
+          label,
+          function,
+          before,
+          after,
+        )
+      #(c, BinaryOperator(typ:, location:, name: g.Pipe, left:, right:))
     }
     g.BinaryOperator(location:, name:, left:, right:) -> {
       let #(c, fun_typ) = case name {

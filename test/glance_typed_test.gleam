@@ -762,6 +762,22 @@ pub fn pipe_test() {
   |> birdie.snap(title: "pipe test")
 }
 
+pub fn pipe_with_args_test() {
+  infer_yaml_with_prelude(
+    "
+    fn sub(minuend m, subtrahend s) { m - s }
+    pub fn f() {
+      5
+      |> sub(3)
+      |> sub(8, _)
+      |> sub(minuend: 8)
+      |> echo
+    }
+    ",
+  )
+  |> birdie.snap(title: "pipe with args test")
+}
+
 pub fn use_statement_test() {
   infer_yaml_with_prelude(
     "
