@@ -1921,7 +1921,9 @@ fn infer_body(
           #(c, [statement, ..rest])
         }
         g.Use(span, patterns, function) -> {
-          // TODO infer without desugaring
+          // desugar for inference: generate an fn() with one argument per pattern,
+          // and the remaining statements in the current body as its body, which is
+          // passed as the final callback argument to the specified function call.
           let #(span, fun, args) = case function {
             g.Call(span, fun, args) -> #(span, fun, args)
             _ -> #(span, function, [])
@@ -1930,14 +1932,17 @@ fn infer_body(
             list.index_map(patterns, fn(_pat, i) {
               g.FnParameter(g.Named("P" <> int.to_string(i)), None)
             })
+          // generate a pattern assignment for each argument of the callback, and
+          // append the remainder of the current body.
           let body =
             list.index_fold(patterns, xs, fn(body, pat, i) {
               let param = g.Variable(span, "P" <> int.to_string(i))
               let assignment =
-                g.Assignment(span, g.Let, pat.pattern, None, param)
+                g.Assignment(span, g.Let, pat.pattern, pat.annotation, param)
               [assignment, ..body]
             })
           let callback = g.Fn(span, params, None, body)
+          // infer the function being called so we can insert the callback correctly
           use #(_, ifun) <- result.try(infer_expression(c, n, fun))
           let field = case ifun {
             Function(labels:, ..) ->
@@ -1948,9 +1953,21 @@ fn infer_body(
             _ -> g.UnlabelledField(callback)
           }
           let call = g.Call(span, fun, list.append(args, [field]))
+          // finally infer the expression as a whole
           use #(c, exp) <- result.map(infer_expression(c, n, call))
-          let statement = Expression(exp.typ, exp.location, exp)
-          #(c, [statement])
+          // now re-sugar into a use statement
+          let assert Call(function: ifun, positional_arguments: iargs, ..) = exp
+          let assert Ok(Fn(body:, ..)) = list.last(iargs)
+          let #(patterns, body) = list.split(body, list.length(patterns))
+          let patterns =
+            list.map(patterns, fn(stmt) {
+              let assert Assignment(pattern:, annotation:, ..) = stmt
+              UsePattern(pattern, annotation)
+            })
+            |> list.reverse
+          let statement = Use(exp.typ, exp.location, patterns, ifun)
+          // TODO: do we really not want to keep the rest of body inline?
+          #(c, [statement, ..body])
         }
       }
   }
