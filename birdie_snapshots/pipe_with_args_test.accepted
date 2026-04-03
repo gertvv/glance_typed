@@ -11,28 +11,23 @@ functions:
   type: "() fn() -> gleam.Int"
   publicity: public
   body:
-  - kind: binary_operator
+  - kind: pipe
     type: "gleam.Int"
-    name: "|>"
     left:
-      kind: binary_operator
+      kind: pipe
       type: "gleam.Int"
-      name: "|>"
       left:
-        kind: binary_operator
+        kind: pipe
         type: "gleam.Int"
-        name: "|>"
         left:
-          kind: binary_operator
+          kind: pipe
           type: "gleam.Int"
-          name: "|>"
           left:
             kind: int_literal
             type: "gleam.Int"
             value: "5"
           right:
             kind: fn_capture
-            type: "fn(gleam.Int, gleam.Int) -> gleam.Int"
             function:
               kind: function
               type: "fn(gleam.Int, gleam.Int) -> gleam.Int"
@@ -45,7 +40,6 @@ functions:
                 value: "3"
         right:
           kind: fn_capture
-          type: "fn(gleam.Int, gleam.Int) -> gleam.Int"
           function:
             kind: function
             type: "fn(gleam.Int, gleam.Int) -> gleam.Int"
@@ -58,7 +52,6 @@ functions:
               value: "8"
       right:
         kind: fn_capture
-        type: "fn(gleam.Int, gleam.Int) -> gleam.Int"
         function:
           kind: function
           type: "fn(gleam.Int, gleam.Int) -> gleam.Int"
@@ -71,21 +64,7 @@ functions:
             type: "gleam.Int"
             value: "8"
     right:
-      kind: fn_capture
-      type: "fn(gleam.Int) -> gleam.Int"
-      function:
-        kind: fn
-        type: "fn(gleam.Int) -> gleam.Int"
-        parameters:
-        - type: "gleam.Int"
-          name: value
-        body:
-        - kind: echo
-          type: "gleam.Int"
-          expression:
-            kind: local_variable
-            type: "gleam.Int"
-            name: value
+      kind: echo
 - name: sub
   type: "() fn(gleam.Int, gleam.Int) -> gleam.Int"
   publicity: private

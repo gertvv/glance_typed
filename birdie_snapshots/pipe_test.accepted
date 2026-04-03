@@ -14,16 +14,14 @@ functions:
     annotation: Int
     type: "gleam.Int"
   body:
-  - kind: binary_operator
+  - kind: pipe
     type: "gleam.Int"
-    name: "|>"
     left:
       kind: int_literal
       type: "gleam.Int"
       value: "5"
     right:
       kind: fn_capture
-      type: "fn(gleam.Int) -> gleam.Int"
       function:
         kind: function
         type: "fn(gleam.Int) -> gleam.Int"
