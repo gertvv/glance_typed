@@ -190,6 +190,64 @@ pub fn nested_field_access_test() {
   |> birdie.snap(title: "nested field access test")
 }
 
+const pet_type = "
+  pub type Pet {
+    Dog(name: String, cuteness: Int)
+    Turtle(name: String, speed: Int, times_renamed: Int)
+  }
+  "
+
+pub fn shared_field_access_test() {
+  infer_yaml_with_prelude(pet_type <> "
+    pub fn name(pet: Pet) {
+      pet.name
+    }
+    ")
+  |> birdie.snap(title: "shared field access test")
+}
+
+pub fn non_shared_field_access_test() {
+  infer_error_with_prelude(pet_type <> "
+    pub fn cuteness(pet: Pet) {
+      pet.cuteness
+    }
+  ")
+  |> typed.inspect_error
+  |> birdie.snap(title: "non shared field access test")
+}
+
+pub fn created_variant_field_access_test() {
+  infer_yaml_with_prelude(pet_type <> "
+    pub fn slow() {
+      let miles = Turtle(\"Miles\", 10, 0)
+      miles.speed
+    }
+  ")
+  |> birdie.snap(title: "created variant field access test")
+}
+
+pub fn asserted_variant_field_access_test() {
+  infer_yaml_with_prelude(pet_type <> "
+    pub fn turtle_speed(pet: Pet) {
+      let assert Turtle(..) = pet
+      pet.speed
+    }
+  ")
+  |> birdie.snap(title: "asserted variant field access test")
+}
+
+pub fn matched_variant_field_access_test() {
+  infer_yaml_with_prelude(pet_type <> "
+    pub fn speed(pet: Pet) {
+      case p {
+        Dog(..) -> 500
+        Turtle(..) -> pet.speed
+      }
+    }
+  ")
+  |> birdie.snap(title: "matched variant field access test")
+}
+
 pub fn pipe_with_labelled_arg_test() {
   infer_yaml(
     "

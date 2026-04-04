@@ -336,13 +336,20 @@ fn expression_to_yaml(expression: typed.Expression) -> cymbal.Yaml {
       index:,
       ..,
     ) ->
-      typed_node("field_access", typ, [
-        #("container", expression_to_yaml(container)),
-        #("module", cymbal.string(module)),
-        #("variant", cymbal.string(constructor)),
-        #("label", cymbal.string(label)),
-        #("index", cymbal.int(index)),
-      ])
+      typed_node(
+        "field_access",
+        typ,
+        [
+          Some(#("container", expression_to_yaml(container))),
+          Some(#("module", cymbal.string(module))),
+          option.map(constructor, fn(constructor) {
+            #("constructor", cymbal.string(constructor))
+          }),
+          Some(#("label", cymbal.string(label))),
+          Some(#("index", cymbal.int(index))),
+        ]
+          |> option.values,
+      )
     typed.Call(typ:, function:, positional_arguments:, ..) ->
       typed_node("call", typ, [
         #("function", expression_to_yaml(function)),

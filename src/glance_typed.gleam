@@ -239,7 +239,7 @@ pub type Expression {
     container: Expression,
     label: String,
     module: String,
-    constructor: String,
+    constructor: Option(String),
     index: Int,
   )
   Call(
@@ -390,6 +390,7 @@ pub type CustomType {
     publicity: Publicity,
     opaque_: Bool,
     parameters: List(String),
+    // TODO: consider adding the shared fields here
     variants: List(Variant),
   )
 }
@@ -482,10 +483,10 @@ pub type Context {
   )
 }
 
-pub type LocalEnv =
+type LocalEnv =
   Dict(String, Type)
 
-pub type TypeEnv =
+type TypeEnv =
   Dict(String, Type)
 
 /// Run type inference on a `glance.Module`.
@@ -2290,24 +2291,33 @@ fn infer_expression(
           type_name,
         ))
 
-        // access only works with one variant
-        let variant = case variants {
-          // TODO proper implementation checking all variants
-          [variant, ..] -> Ok(variant)
-          _ -> Error(InvalidFieldAccess(context_location(c)))
-        }
-        use variant <- result.try(variant)
+        // identify the shared fields among all variants
+        let fields =
+          list.map(variants, fn(v) {
+            list.map(v.fields, fn(f) { #(variant_field_label(f), f.item.typ) })
+          })
+          |> list.reduce(fn(a, b) {
+            list.zip(a, b)
+            |> list.fold_until(from: [], with: fn(params, pair) {
+              case pair {
+                #(a, b) if a == b -> list.Continue([a, ..params])
+                _ -> list.Stop(list.reverse(params))
+              }
+            })
+          })
+          |> result.replace_error(InvalidFieldAccess(context_location(c)))
+        use fields <- result.try(fields)
 
         // find the matching field and index
         let field =
-          variant.fields
+          fields
           |> list.index_map(fn(x, i) { #(x, i) })
-          |> list.find(fn(x) { variant_field_label(x.0) == Some(label) })
+          |> list.find(fn(x) { x.0.0 == Some(label) })
           |> result.replace_error(FieldNotFound(context_location(c), label))
-        use #(field, index) <- result.try(field)
+        use #(#(_, field_type), index) <- result.try(field)
 
         // create a getter function type
-        let getter = FunctionType([typ.typ], field.item.typ)
+        let getter = FunctionType([typ.typ], field_type)
         let getter = Poly(typ.vars, getter)
         let #(c, getter) = instantiate(c, getter)
 
@@ -2315,10 +2325,7 @@ fn infer_expression(
         let #(c, typ) = new_type_var_ref(c)
         use c <- result.map(unify(c, getter, FunctionType([value.typ], typ)))
 
-        #(
-          c,
-          FieldAccess(typ, location, value, label, module, variant.name, index),
-        )
+        #(c, FieldAccess(typ, location, value, label, module, None, index))
       }
       case field_access {
         Ok(access) -> Ok(access)
