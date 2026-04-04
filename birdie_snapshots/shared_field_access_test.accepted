@@ -1,0 +1,61 @@
+---
+version: 1.5.4
+title: shared field access test
+file: ./test/glance_typed_test.gleam
+test_name: shared_field_access_test
+---
+---
+name: test
+types:
+- name: Pet
+  type: "() test.Pet"
+  publicity: public
+  opaque: false
+  variants:
+  - name: Dog
+    type: "() fn(gleam.String, gleam.Int) -> test.Pet/Dog"
+    fields:
+    - label: name
+      annotation:
+        annotation: String
+        type: "gleam.String"
+    - label: cuteness
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+  - name: Turtle
+    type: "() fn(gleam.String, gleam.Int, gleam.Int) -> test.Pet/Turtle"
+    fields:
+    - label: name
+      annotation:
+        annotation: String
+        type: "gleam.String"
+    - label: speed
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+    - label: times_renamed
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+functions:
+- name: name
+  type: "() fn(test.Pet) -> gleam.String"
+  publicity: public
+  parameters:
+  - type: "test.Pet"
+    name: pet
+    annotation:
+      annotation: Pet
+      type: "test.Pet"
+  body:
+  - kind: field_access
+    type: "gleam.String"
+    container:
+      kind: local_variable
+      type: "test.Pet"
+      name: pet
+    module: test
+    label: name
+    index: 0
+

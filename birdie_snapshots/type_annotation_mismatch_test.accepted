@@ -4,4 +4,4 @@ title: type annotation mismatch test
 file: ./test/glance_typed_test.gleam
 test_name: type_annotation_mismatch_test
 ---
-Incompatible types: a = NamedType("test", "B", []), b = NamedType("test", "A", [])
+Incompatible types: a = NamedType("test", "B", [], None), b = NamedType("test", "A", [], None)

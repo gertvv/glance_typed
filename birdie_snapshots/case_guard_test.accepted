@@ -18,7 +18,7 @@ functions:
       type: "gleam.Int"
   body:
   - kind: case
-    type: "gleam.Bool"
+    type: "gleam.Bool/True"
     subjects:
     - kind: local_variable
       type: "gleam.Int"
@@ -43,7 +43,7 @@ functions:
           value: "0"
       body:
         kind: function
-        type: "gleam.Bool"
+        type: "gleam.Bool/True"
         module: gleam
         name: True
     - patterns:
@@ -52,7 +52,7 @@ functions:
           type: "gleam.Int"
       body:
         kind: function
-        type: "gleam.Bool"
+        type: "gleam.Bool/False"
         module: gleam
         name: False
 

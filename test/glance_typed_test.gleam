@@ -248,6 +248,32 @@ pub fn matched_variant_field_access_test() {
   |> birdie.snap(title: "matched variant field access test")
 }
 
+pub fn created_variant_field_access_indirect_test() {
+  infer_yaml_with_prelude(pet_type <> "
+    pub fn turtle_speed() {
+      let pet = fn() {
+        Turtle(\"Miles\", 10, 0)
+      }
+      pet().speed
+    }
+  ")
+  |> birdie.snap(title: "created variant field access indirect test")
+}
+
+pub fn variant_type_not_returned_by_global_function_test() {
+  infer_error_with_prelude(pet_type <> "
+    pub fn dog() {
+      Dog(\"Charles\", 1000)
+    }
+
+    pub fn cuteness() {
+      dog().cuteness
+    }
+  ")
+  |> typed.inspect_error
+  |> birdie.snap(title: "variant type not returned by global function test")
+}
+
 pub fn pipe_with_labelled_arg_test() {
   infer_yaml(
     "

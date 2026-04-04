@@ -15,7 +15,7 @@ types:
   - a
   variants:
   - name: Box
-    type: "(0) fn(0) -> test.Box(0)"
+    type: "(0) fn(0) -> test.Box(0)/Box"
     fields:
     - label: value
       annotation:
@@ -30,10 +30,10 @@ functions:
     name: x
   body:
   - kind: call
-    type: "test.Box(0)"
+    type: "test.Box(0)/Box"
     function:
       kind: function
-      type: "fn(0) -> test.Box(0)"
+      type: "fn(0) -> test.Box(0)/Box"
       module: test
       name: Box
     positional_arguments:

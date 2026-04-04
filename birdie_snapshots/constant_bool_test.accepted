@@ -12,7 +12,7 @@ constants:
   publicity: public
   value:
     kind: function
-    type: "gleam.Bool"
+    type: "gleam.Bool/True"
     module: gleam
     name: True
 

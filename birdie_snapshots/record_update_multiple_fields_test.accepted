@@ -13,7 +13,7 @@ types:
   opaque: false
   variants:
   - name: Point
-    type: "() fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point"
+    type: "() fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point/Point"
     fields:
     - label: x
       annotation:
@@ -39,7 +39,7 @@ functions:
       type: "test.Point"
   body:
   - kind: record_update
-    type: "test.Point"
+    type: "test.Point/Point"
     module: test
     constructor: Point
     record:

@@ -15,7 +15,7 @@ types:
   - a
   variants:
   - name: Box
-    type: "(0) fn(0) -> test.Box(0)"
+    type: "(0) fn(0) -> test.Box(0)/Box"
     fields:
     - label: value
       annotation:
@@ -39,7 +39,6 @@ functions:
       type: "test.Box(0)"
       name: b
     module: test
-    variant: Box
     label: value
     index: 0
 

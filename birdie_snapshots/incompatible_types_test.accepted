@@ -4,4 +4,4 @@ title: incompatible types test
 file: ./test/glance_typed_test.gleam
 test_name: incompatible_types_test
 ---
-Incompatible types: a = NamedType("gleam", "Int", []), b = NamedType("gleam", "String", [])
+Incompatible types: a = NamedType("gleam", "Int", [], None), b = NamedType("gleam", "String", [], None)

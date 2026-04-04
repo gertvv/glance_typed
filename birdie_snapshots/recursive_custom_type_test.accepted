@@ -15,7 +15,7 @@ types:
   - e
   variants:
   - name: Node
-    type: "(0) fn(test.Tree(0), test.Tree(0)) -> test.Tree(0)"
+    type: "(0) fn(test.Tree(0), test.Tree(0)) -> test.Tree(0)/Node"
     fields:
     - label: left
       annotation:
@@ -26,7 +26,7 @@ types:
         annotation: "Tree(e)"
         type: "test.Tree(0)"
   - name: Leaf
-    type: "(0) fn(0) -> test.Tree(0)"
+    type: "(0) fn(0) -> test.Tree(0)/Leaf"
     fields:
     - label: data
       annotation:

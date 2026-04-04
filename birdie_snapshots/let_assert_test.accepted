@@ -15,7 +15,7 @@ types:
   - a
   variants:
   - name: Wrapper
-    type: "(0) fn(0) -> test.Wrapper(0)"
+    type: "(0) fn(0) -> test.Wrapper(0)/Wrapper"
     fields:
     - label: value
       annotation:
@@ -37,7 +37,7 @@ functions:
     assignment_kind: let_assert
     pattern:
       kind: constructor_pattern
-      type: "test.Wrapper(0)"
+      type: "test.Wrapper(0)/Wrapper"
       constructor: Wrapper
       with_spread: false
       positional_arguments:

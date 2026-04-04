@@ -21,10 +21,10 @@ functions:
     type: "gleam/option.Option(gleam.Int)"
   body:
   - kind: call
-    type: "gleam/option.Option(gleam.Int)"
+    type: "gleam/option.Option(gleam.Int)/Some"
     function:
       kind: function
-      type: "fn(gleam.Int) -> gleam/option.Option(gleam.Int)"
+      type: "fn(gleam.Int) -> gleam/option.Option(gleam.Int)/Some"
       module: "gleam/option"
       name: Some
     positional_arguments:

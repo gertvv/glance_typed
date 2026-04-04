@@ -1,0 +1,87 @@
+---
+version: 1.5.4
+title: created variant field access indirect test
+file: ./test/glance_typed_test.gleam
+test_name: created_variant_field_access_indirect_test
+---
+---
+name: test
+types:
+- name: Pet
+  type: "() test.Pet"
+  publicity: public
+  opaque: false
+  variants:
+  - name: Dog
+    type: "() fn(gleam.String, gleam.Int) -> test.Pet/Dog"
+    fields:
+    - label: name
+      annotation:
+        annotation: String
+        type: "gleam.String"
+    - label: cuteness
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+  - name: Turtle
+    type: "() fn(gleam.String, gleam.Int, gleam.Int) -> test.Pet/Turtle"
+    fields:
+    - label: name
+      annotation:
+        annotation: String
+        type: "gleam.String"
+    - label: speed
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+    - label: times_renamed
+      annotation:
+        annotation: Int
+        type: "gleam.Int"
+functions:
+- name: turtle_speed
+  type: "() fn() -> gleam.Int"
+  publicity: public
+  body:
+  - kind: assignment
+    type: "fn() -> test.Pet/Turtle"
+    assignment_kind: let
+    pattern:
+      kind: variable_pattern
+      type: "fn() -> test.Pet/Turtle"
+      name: pet
+    value:
+      kind: fn
+      type: "fn() -> test.Pet/Turtle"
+      body:
+      - kind: call
+        type: "test.Pet/Turtle"
+        function:
+          kind: function
+          type: "fn(gleam.String, gleam.Int, gleam.Int) -> test.Pet/Turtle"
+          module: test
+          name: Turtle
+        positional_arguments:
+        - kind: string_literal
+          type: "gleam.String"
+          value: Miles
+        - kind: int_literal
+          type: "gleam.Int"
+          value: "10"
+        - kind: int_literal
+          type: "gleam.Int"
+          value: "0"
+  - kind: field_access
+    type: "gleam.Int"
+    container:
+      kind: call
+      type: "test.Pet/Turtle"
+      function:
+        kind: local_variable
+        type: "fn() -> test.Pet/Turtle"
+        name: pet
+    module: test
+    constructor: Turtle
+    label: speed
+    index: 1
+

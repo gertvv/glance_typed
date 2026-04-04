@@ -15,14 +15,14 @@ types:
   - a
   variants:
   - name: Forest
-    type: "(0) fn(test.Tree(0)) -> test.Forest(0)"
+    type: "(0) fn(test.Tree(0)) -> test.Forest(0)/Forest"
     fields:
     - label: head
       annotation:
         annotation: "Tree(a)"
         type: "test.Tree(0)"
   - name: EmptyForest
-    type: "(0) test.Forest(0)"
+    type: "(0) test.Forest(0)/EmptyForest"
 - name: Tree
   type: "(0) test.Tree(0)"
   publicity: public
@@ -31,7 +31,7 @@ types:
   - a
   variants:
   - name: Tree
-    type: "(0) fn(0, test.Forest(0)) -> test.Tree(0)"
+    type: "(0) fn(0, test.Forest(0)) -> test.Tree(0)/Tree"
     fields:
     - label: value
       annotation:

@@ -15,7 +15,7 @@ types:
   - a
   variants:
   - name: Point
-    type: "(0) fn(0, 0) -> test.Point(0)"
+    type: "(0) fn(0, 0) -> test.Point(0)/Point"
     fields:
     - label: x
       annotation:
@@ -42,7 +42,7 @@ functions:
       type: "0"
   body:
   - kind: record_update
-    type: "test.Point(0)"
+    type: "test.Point(0)/Point"
     module: test
     constructor: Point
     record:

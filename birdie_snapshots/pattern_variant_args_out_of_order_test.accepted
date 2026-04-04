@@ -13,7 +13,7 @@ types:
   opaque: false
   variants:
   - name: Point
-    type: "() fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point"
+    type: "() fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point/Point"
     fields:
     - label: x
       annotation:
@@ -43,7 +43,7 @@ functions:
     assignment_kind: let
     pattern:
       kind: constructor_pattern
-      type: "test.Point"
+      type: "test.Point/Point"
       constructor: Point
       with_spread: false
       positional_arguments:

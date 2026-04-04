@@ -15,7 +15,7 @@ types:
   - a
   variants:
   - name: Triple
-    type: "(0) fn(0, 0, 0) -> test.Triple(0)"
+    type: "(0) fn(0, 0, 0) -> test.Triple(0)/Triple"
     fields:
     - label: a
       annotation:
@@ -50,7 +50,7 @@ functions:
     - patterns:
       -
         - kind: constructor_pattern
-          type: "test.Triple(0)"
+          type: "test.Triple(0)/Triple"
           constructor: Triple
           with_spread: true
           positional_arguments:

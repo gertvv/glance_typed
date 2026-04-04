@@ -1,0 +1,7 @@
+---
+version: 1.5.4
+title: variant type not returned by global function test
+file: ./test/glance_typed_test.gleam
+test_name: variant_type_not_returned_by_global_function_test
+---
+This record does not have a field named 'cuteness'

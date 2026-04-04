@@ -691,13 +691,17 @@ fn polytype_to_yaml(polytype: typed.Poly) -> cymbal.Yaml {
 fn type_to_string(typ: typed.Type) -> String {
   let of_list = fn(types) { string.join(list.map(types, type_to_string), ", ") }
   case typ {
-    typed.NamedType(module:, name:, parameters:) ->
+    typed.NamedType(module:, name:, parameters:, variant:) ->
       module
       <> "."
       <> name
       <> case parameters {
         [] -> ""
         _ -> "(" <> of_list(parameters) <> ")"
+      }
+      <> case variant {
+        Some(variant) -> "/" <> variant
+        None -> ""
       }
     typed.TupleType(elements:) -> "#(" <> of_list(elements) <> ")"
     typed.FunctionType(parameters:, return:) ->

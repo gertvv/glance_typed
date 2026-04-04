@@ -12,19 +12,19 @@ import gleam/string
 
 pub const prelude = "gleam"
 
-pub const nil_type = NamedType(prelude, "Nil", [])
+pub const nil_type = NamedType(prelude, "Nil", [], None)
 
-pub const bool_type = NamedType(prelude, "Bool", [])
+pub const bool_type = NamedType(prelude, "Bool", [], None)
 
-pub const int_type = NamedType(prelude, "Int", [])
+pub const int_type = NamedType(prelude, "Int", [], None)
 
-pub const codepoint_type = NamedType(prelude, "UtfCodepoint", [])
+pub const codepoint_type = NamedType(prelude, "UtfCodepoint", [], None)
 
-pub const float_type = NamedType(prelude, "Float", [])
+pub const float_type = NamedType(prelude, "Float", [], None)
 
-pub const string_type = NamedType(prelude, "String", [])
+pub const string_type = NamedType(prelude, "String", [], None)
 
-pub const bit_array_type = NamedType(prelude, "BitArray", [])
+pub const bit_array_type = NamedType(prelude, "BitArray", [], None)
 
 pub type TypeVarId {
   TypeVarId(id: Int)
@@ -416,7 +416,12 @@ pub type VariantField(t) {
 }
 
 pub type Type {
-  NamedType(module: String, name: String, parameters: List(Type))
+  NamedType(
+    module: String,
+    name: String,
+    parameters: List(Type),
+    variant: Option(String),
+  )
   TupleType(elements: List(Type))
   FunctionType(parameters: List(Type), return: Type)
   VariableType(ref: TypeVarId)
@@ -567,7 +572,7 @@ pub fn infer_module(
         })
       let parameters = list.reverse(parameters)
       let param_types = list.map(parameters, fn(x) { x.1 })
-      let typ = NamedType(c.module.name, custom.name, param_types)
+      let typ = NamedType(c.module.name, custom.name, param_types, None)
       let typ = generalise(c, typ)
 
       register_type(c, def.definition.name, typ, [])
@@ -692,7 +697,7 @@ pub fn infer_module(
       let c = Context(..c, current_definition: constant.name)
       let c = Context(..c, current_span: def.definition.location)
 
-      let poly = generalise(c, constant.value.typ)
+      let poly = generalise(c, constant.value.typ |> remove_variant)
       let c = register_constant(c, constant.name, poly)
       use attrs <- result.map(infer_attributes(c, def.attributes))
       let def = Definition(attrs, constant)
@@ -751,7 +756,7 @@ pub fn infer_module(
 
         // generalise
         let typ = generalise(c, fun.typ.typ)
-        let fun = FunctionDefinition(..fun, typ:)
+        let fun = FunctionDefinition(..fun, typ: remove_variant_return(typ))
         let def = Definition(..def, definition: fun)
 
         // update context
@@ -775,6 +780,21 @@ pub fn infer_module(
   let functions =
     list.map(mod.functions, map_definition(_, substitute_function(c, _)))
   Module(..mod, type_aliases:, custom_types:, constants:, functions:)
+}
+
+fn remove_variant_return(poly: Poly) -> Poly {
+  case poly {
+    Poly(typ: FunctionType(return: rt, ..) as ft, ..) ->
+      Poly(..poly, typ: FunctionType(..ft, return: remove_variant(rt)))
+    _ -> poly
+  }
+}
+
+fn remove_variant(t: Type) -> Type {
+  case t {
+    NamedType(variant: Some(_), ..) -> NamedType(..t, variant: None)
+    _ -> t
+  }
 }
 
 pub fn interface(module: Module) -> ModuleInterface {
@@ -1028,6 +1048,7 @@ fn infer_function(
 
   // compute function type
   let parameter_types = list.map(parameters, fn(x) { x.typ })
+
   let typ = FunctionType(parameter_types, return_type)
 
   // unify the return type with the last statement
@@ -1107,7 +1128,7 @@ fn infer_custom_type(
   let param_types = list.map(parameters, fn(x) { x.1 })
   let module = c.module.name
   let name = custom.name
-  let typ = NamedType(module:, name:, parameters: param_types)
+  let typ = NamedType(module:, name:, parameters: param_types, variant: None)
 
   let location = custom.location
 
@@ -1171,6 +1192,12 @@ fn infer_variant(
   let types = list.map(fields, fn(f) { f.item.typ })
   let labels = list.map(fields, variant_field_label)
 
+  let typ = case typ {
+    NamedType(module:, name:, parameters:, ..) ->
+      NamedType(module:, name:, parameters:, variant: Some(variant.name))
+    _ -> typ
+  }
+
   // handle 0 parameter variants are not functions
   let #(c, typ) = case types {
     [] -> #(c, typ)
@@ -1179,6 +1206,7 @@ fn infer_variant(
 
   let typ = generalise(c, typ)
 
+  // TODO: ensure the function return type includes the variant tag
   let c = register_function(c, variant.name, typ, labels)
 
   use attributes <- result.map(infer_attributes(c, variant.attributes))
@@ -1600,7 +1628,7 @@ fn infer_pattern(
       )
 
       // Create the list type
-      let typ = NamedType(prelude, "List", [elem_type])
+      let typ = NamedType(prelude, "List", [elem_type], None)
 
       // Handle the tail pattern if present
       use #(c, n, tail) <- result.map(case tail {
@@ -2164,7 +2192,7 @@ fn infer_expression(
 
       // Create a type variable for the element type
       let #(c, elem_type) = new_type_var_ref(c)
-      let typ = NamedType(prelude, "List", [elem_type])
+      let typ = NamedType(prelude, "List", [elem_type], None)
 
       // Unify all element types
       use c <- result.try(
@@ -2195,7 +2223,9 @@ fn infer_expression(
       let #(c, constructor_type) = instantiate(c, poly)
       use #(constructor_args, constructor_ret) <- result.try(
         case constructor_type {
-          FunctionType(parameters:, return:) -> Ok(#(parameters, return))
+          FunctionType(parameters:, return:) -> {
+            Ok(#(parameters, return))
+          }
           _ -> Error(NotAFunction(context_location(c), constructor))
         },
       )
@@ -2279,10 +2309,11 @@ fn infer_expression(
         // field access must be on a named type
         let #(c, value_typ_resolved) = resolve_type(c, value.typ)
         let value_typ = case value_typ_resolved {
-          NamedType(module, type_name, _) -> Ok(#(type_name, module))
+          NamedType(module, type_name, _, variant) ->
+            Ok(#(type_name, module, variant))
           _ -> Error(InvalidFieldAccess(context_location(c)))
         }
-        use #(type_name, module) <- result.try(value_typ)
+        use #(type_name, module, variant) <- result.try(value_typ)
 
         // find the custom type definition
         use #(typ, variants) <- result.try(resolve_custom_type(
@@ -2291,9 +2322,14 @@ fn infer_expression(
           type_name,
         ))
 
-        // identify the shared fields among all variants
         let fields =
-          list.map(variants, fn(v) {
+          list.filter(variants, fn(v) {
+            case variant {
+              Some(name) -> v.name == name
+              None -> True
+            }
+          })
+          |> list.map(fn(v) {
             list.map(v.fields, fn(f) { #(variant_field_label(f), f.item.typ) })
           })
           |> list.reduce(fn(a, b) {
@@ -2325,7 +2361,7 @@ fn infer_expression(
         let #(c, typ) = new_type_var_ref(c)
         use c <- result.map(unify(c, getter, FunctionType([value.typ], typ)))
 
-        #(c, FieldAccess(typ, location, value, label, module, None, index))
+        #(c, FieldAccess(typ, location, value, label, module, variant, index))
       }
       case field_access {
         Ok(access) -> Ok(access)
@@ -2856,7 +2892,7 @@ fn find_tvs(c: Context, t: Type) -> List(TypeVarId) {
         Bound(x) -> find_tvs(c, x)
         Unbound -> [ref]
       }
-    NamedType(_, _, args) -> list.flat_map(args, find_tvs(c, _))
+    NamedType(_, _, args, _) -> list.flat_map(args, find_tvs(c, _))
     FunctionType(args, ret) -> list.flat_map([ret, ..args], find_tvs(c, _))
     TupleType(elements) -> list.flat_map(elements, find_tvs(c, _))
   }
@@ -2873,11 +2909,12 @@ fn do_instantiate(c: Context, n: PolyEnv, typ: Type) -> Type {
             Unbound -> typ
           }
       }
-    NamedType(module:, name:, parameters:) ->
+    NamedType(module:, name:, parameters:, variant:) ->
       NamedType(
         module:,
         name:,
         parameters: list.map(parameters, do_instantiate(c, n, _)),
+        variant:,
       )
     FunctionType(args, ret) ->
       FunctionType(
@@ -2905,10 +2942,10 @@ fn unify(c: Context, a: Type, b: Type) -> Result(Context, Error) {
         }
       }
     a, VariableType(_) -> unify(c, b, a)
-    NamedType(amodule, aname, _), NamedType(bmodule, bname, _)
+    NamedType(amodule, aname, _, _), NamedType(bmodule, bname, _, _)
       if aname != bname || amodule != bmodule
     -> Error(IncompatibleTypes(context_location(c), a, b))
-    NamedType(_, _, aargs), NamedType(_, _, bargs) ->
+    NamedType(_, _, aargs, _), NamedType(_, _, bargs, _) ->
       unify_arguments(c, aargs, bargs)
     FunctionType(aargs, aret), FunctionType(bargs, bret) -> {
       use c <- result.try(unify(c, aret, bret))
@@ -2946,7 +2983,7 @@ fn occurs(c: Context, id: TypeVarId, in: Type) -> #(Context, Bool) {
           #(c, id == ref)
         }
       }
-    NamedType(_, _, args) ->
+    NamedType(_, _, args, _) ->
       list.fold(args, #(c, False), fn(acc, arg) {
         let #(c, b) = acc
         let #(c, b1) = occurs(c, id, arg)
@@ -3013,7 +3050,8 @@ fn substitute_constant(
   let rename = build_rename(constant.typ.vars)
   ConstantDefinition(
     ..constant,
-    typ: substitute_poly(c, rename, constant.typ),
+    typ: substitute_poly(c, rename, constant.typ)
+      |> fn(poly) { Poly(..poly, typ: remove_variant(poly.typ)) },
     annotation: option.map(constant.annotation, substitute_annotation(
       c,
       rename,
@@ -3052,7 +3090,7 @@ fn substitute_function(c: Context, function: FunctionDefinition) {
   let rename = build_rename(function.typ.vars)
   FunctionDefinition(
     ..function,
-    typ: substitute_poly(c, rename, function.typ),
+    typ: substitute_poly(c, rename, function.typ) |> remove_variant_return,
     parameters: list.map(function.parameters, substitute_function_parameter(
       c,
       rename,
@@ -3494,9 +3532,9 @@ fn substitute_poly(c: Context, rename: Dict(TypeVarId, TypeVarId), poly: Poly) {
 
 fn substitute_type(c: Context, rename: Dict(TypeVarId, TypeVarId), typ: Type) {
   case typ {
-    NamedType(module:, name:, parameters:) -> {
+    NamedType(module:, name:, parameters:, variant:) -> {
       let parameters = list.map(parameters, substitute_type(c, rename, _))
-      NamedType(module:, name:, parameters:)
+      NamedType(module:, name:, parameters:, variant:)
     }
     FunctionType(parameters, return) -> {
       let parameters = list.map(parameters, substitute_type(c, rename, _))

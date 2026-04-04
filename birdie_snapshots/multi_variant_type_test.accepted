@@ -15,14 +15,14 @@ types:
   - a
   variants:
   - name: Circle
-    type: "(0) fn(0) -> test.Shape(0)"
+    type: "(0) fn(0) -> test.Shape(0)/Circle"
     fields:
     - label: radius
       annotation:
         annotation: a
         type: "0"
   - name: Rectangle
-    type: "(0) fn(0, 0) -> test.Shape(0)"
+    type: "(0) fn(0, 0) -> test.Shape(0)/Rectangle"
     fields:
     - label: width
       annotation:

@@ -13,7 +13,7 @@ types:
   opaque: false
   variants:
   - name: Point
-    type: "() fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point"
+    type: "() fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point/Point"
     fields:
     - label: x
       annotation:
@@ -33,10 +33,10 @@ functions:
   publicity: public
   body:
   - kind: call
-    type: "test.Point"
+    type: "test.Point/Point"
     function:
       kind: function
-      type: "fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point"
+      type: "fn(gleam.Int, gleam.Int, gleam.Int) -> test.Point/Point"
       module: test
       name: Point
     positional_arguments:
