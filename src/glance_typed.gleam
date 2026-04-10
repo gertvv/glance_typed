@@ -697,7 +697,7 @@ pub fn infer_module(
       let c = Context(..c, current_definition: constant.name)
       let c = Context(..c, current_span: def.definition.location)
 
-      let poly = generalise(c, constant.value.typ |> remove_variant)
+      let poly = generalise(c, constant.value.typ)
       let c = register_constant(c, constant.name, poly)
       use attrs <- result.map(infer_attributes(c, def.attributes))
       let def = Definition(attrs, constant)
@@ -756,7 +756,7 @@ pub fn infer_module(
 
         // generalise
         let typ = generalise(c, fun.typ.typ)
-        let fun = FunctionDefinition(..fun, typ: remove_variant_return(typ))
+        let fun = FunctionDefinition(..fun, typ:)
         let def = Definition(..def, definition: fun)
 
         // update context
@@ -782,18 +782,17 @@ pub fn infer_module(
   Module(..mod, type_aliases:, custom_types:, constants:, functions:)
 }
 
-fn remove_variant_return(poly: Poly) -> Poly {
-  case poly {
-    Poly(typ: FunctionType(return: rt, ..) as ft, ..) ->
-      Poly(..poly, typ: FunctionType(..ft, return: remove_variant(rt)))
-    _ -> poly
-  }
-}
-
-fn remove_variant(t: Type) -> Type {
+fn generalise_custom_type_variant(t: Type) -> Type {
   case t {
     NamedType(variant: Some(_), ..) -> NamedType(..t, variant: None)
-    _ -> t
+    TupleType(elements:) ->
+      TupleType(list.map(elements, generalise_custom_type_variant))
+    FunctionType(parameters:, return:) ->
+      FunctionType(
+        list.map(parameters, generalise_custom_type_variant),
+        generalise_custom_type_variant(return),
+      )
+    NamedType(..) | VariableType(..) -> t
   }
 }
 
@@ -1575,6 +1574,8 @@ fn infer_pattern(
   n: LocalEnv,
   pattern: g.Pattern,
 ) -> Result(#(Context, LocalEnv, Pattern), Error) {
+  // TODO: instead of inferring the pattern in isolation, we need to "unify" it with the subject
+  // this means that Discard/Variable patterns won't mint new type variables, and thus will preserve any inferred variant
   case pattern {
     g.PatternInt(location:, value:) ->
       Ok(#(c, n, PatternInt(int_type, location, value)))
@@ -1812,8 +1813,8 @@ fn infer_pattern(
         _ -> {
           // unify the constructor function type with the types of args
           let #(c, fun_typ) = instantiate(c, poly)
-          let #(c, typ) = new_type_var_ref(c)
-          use c <- result.map(unify(c, fun_typ, FunctionType(arg_types, typ)))
+          let assert FunctionType(param_types, typ) = fun_typ
+          use c <- result.map(unify_arguments(c, param_types, arg_types))
           #(c, typ)
         }
       })
@@ -2446,8 +2447,19 @@ fn infer_expression(
       let positional_arguments = list.map(positional_fields, fn(f) { f.item })
 
       // unify the function type with the types of args
-      let #(c, typ) = new_type_var_ref(c)
-      use c <- result.map(unify(c, fun.typ, FunctionType(arg_types, typ)))
+      let res = case fun.typ {
+        FunctionType(parameters:, return:) -> {
+          // Only unify on the arguments if we have a concrete FuncionType, this preserves the variant
+          use c <- result.map(unify_arguments(c, parameters, arg_types))
+          #(c, return)
+        }
+        _ -> {
+          let #(c, typ) = new_type_var_ref(c)
+          use c <- result.map(unify(c, fun.typ, FunctionType(arg_types, typ)))
+          #(c, typ)
+        }
+      }
+      use #(c, typ) <- result.map(res)
       #(c, Call(typ, span, fun, arguments, positional_arguments))
     }
     g.TupleIndex(location:, tuple:, index:) -> {
@@ -2937,7 +2949,8 @@ fn unify(c: Context, a: Type, b: Type) -> Result(Context, Error) {
           let #(c, occurs) = occurs(c, ref, b)
           case occurs {
             True -> Error(RecursiveTypeError(context_location(c)))
-            False -> Ok(set_type_var(c, ref, Bound(b)))
+            False ->
+              Ok(set_type_var(c, ref, Bound(generalise_custom_type_variant(b))))
           }
         }
       }
@@ -3050,8 +3063,7 @@ fn substitute_constant(
   let rename = build_rename(constant.typ.vars)
   ConstantDefinition(
     ..constant,
-    typ: substitute_poly(c, rename, constant.typ)
-      |> fn(poly) { Poly(..poly, typ: remove_variant(poly.typ)) },
+    typ: substitute_poly(c, rename, constant.typ),
     annotation: option.map(constant.annotation, substitute_annotation(
       c,
       rename,
@@ -3090,7 +3102,7 @@ fn substitute_function(c: Context, function: FunctionDefinition) {
   let rename = build_rename(function.typ.vars)
   FunctionDefinition(
     ..function,
-    typ: substitute_poly(c, rename, function.typ) |> remove_variant_return,
+    typ: substitute_poly(c, rename, function.typ),
     parameters: list.map(function.parameters, substitute_function_parameter(
       c,
       rename,
