@@ -795,10 +795,10 @@ pub fn interface(module: Module) -> ModuleInterface {
   )
 }
 
-/// Returns the ModuleInterface for the Gleam prelude (the "gleam" module).
+/// Returns the Module for the Gleam prelude (the "gleam" module).
 /// This includes built-in types like Int, Float, String, Bool, Nil, List,
 /// Result, BitArray, and UtfCodepoint, along with their constructors.
-pub fn prelude_interface() -> ModuleInterface {
+pub fn prelude_module() -> Module {
   let prelude_source =
     "
     pub type Int
@@ -806,14 +806,14 @@ pub fn prelude_interface() -> ModuleInterface {
     pub type String
     pub type Bool { True False }
     pub type Nil { Nil }
-    pub type List(a)
+    pub type List(a) { NonEmpty(head: a, tail: List(a)) Empty }
     pub type Result(value, error) { Ok(value) Error(error) }
     pub type BitArray
     pub type UtfCodepoint
     "
   let assert Ok(parsed) = g.module(prelude_source)
   let assert Ok(module) = infer_module(dict.new(), parsed, prelude)
-  interface(module)
+  module
 }
 
 fn new_context(module_name: String) -> Context {

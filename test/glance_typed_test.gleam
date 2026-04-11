@@ -37,7 +37,7 @@ fn infer_yaml(source: String) -> String {
 }
 
 fn prelude_deps() -> dict.Dict(String, typed.ModuleInterface) {
-  dict.from_list([#("gleam", typed.prelude_interface())])
+  dict.from_list([#("gleam", typed.interface(typed.prelude_module()))])
 }
 
 fn infer_with_prelude(source: String) -> typed.Module {
@@ -61,7 +61,7 @@ fn infer_error_with_prelude(source: String) -> typed.Error {
 }
 
 fn option_dependencies() -> dict.Dict(String, typed.ModuleInterface) {
-  let prelude = typed.prelude_interface()
+  let prelude = typed.interface(typed.prelude_module())
   let option_interface =
     infer_interface(
       dict.new(),
@@ -1183,7 +1183,7 @@ pub fn pattern_variant_shorthand_preserved_test() {
 pub fn use_imported_constant_test() {
   let deps =
     dict.from_list([
-      #("gleam", typed.prelude_interface()),
+      #("gleam", typed.interface(typed.prelude_module())),
       #("mymod", infer_interface(dict.new(), "pub const answer = 42", "mymod")),
     ])
   infer_with(
