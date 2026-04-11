@@ -26,6 +26,10 @@ pub const string_type = NamedType(prelude, "String", [], None)
 
 pub const bit_array_type = NamedType(prelude, "BitArray", [], None)
 
+pub fn list_type(el_type) {
+  NamedType(prelude, "List", [el_type], None)
+}
+
 pub type TypeVarId {
   TypeVarId(id: Int)
 }
@@ -1555,6 +1559,10 @@ fn new_type_var_ref(c: Context) {
   #(Context(..c, type_vars: type_vars, type_uid: c.type_uid + 1), typ)
 }
 
+fn new_type_var_refs(c: Context, for things: List(a)) -> #(Context, List(Type)) {
+  list.map_fold(things, c, fn(c, _) { new_type_var_ref(c) })
+}
+
 fn annotation_type_or_new(c: Context, annotation: Option(Annotation)) {
   case annotation {
     Some(a) -> #(c, a.typ)
@@ -1573,80 +1581,159 @@ fn infer_pattern(
   c: Context,
   n: LocalEnv,
   pattern: g.Pattern,
+  subject_type: Type,
+  subject_name: Option(String),
 ) -> Result(#(Context, LocalEnv, Pattern), Error) {
-  // TODO: instead of inferring the pattern in isolation, we need to "unify" it with the subject
-  // this means that Discard/Variable patterns won't mint new type variables, and thus will preserve any inferred variant
+  let c = Context(..c, current_span: pattern.location)
   case pattern {
-    g.PatternInt(location:, value:) ->
-      Ok(#(c, n, PatternInt(int_type, location, value)))
-    g.PatternFloat(location:, value:) ->
-      Ok(#(c, n, PatternFloat(float_type, location, value)))
-    g.PatternString(location:, value:) ->
-      Ok(#(c, n, PatternString(string_type, location, value)))
+    g.PatternInt(location:, value:) -> {
+      use c <- result.map(unify(c, subject_type, int_type))
+      #(c, n, PatternInt(int_type, location, value))
+    }
+    g.PatternFloat(location:, value:) -> {
+      use c <- result.map(unify(c, subject_type, float_type))
+      #(c, n, PatternFloat(float_type, location, value))
+    }
+    g.PatternString(location:, value:) -> {
+      use c <- result.map(unify(c, subject_type, string_type))
+      #(c, n, PatternString(string_type, location, value))
+    }
     g.PatternDiscard(location:, name:) -> {
-      let #(c, typ) = new_type_var_ref(c)
-      Ok(#(c, n, PatternDiscard(typ, location, name)))
+      Ok(#(c, n, PatternDiscard(subject_type, location, name)))
     }
     g.PatternVariable(location:, name:) -> {
-      let #(c, typ) = new_type_var_ref(c)
-      let pattern = PatternVariable(typ, location, name)
-      let n = dict.insert(n, name, typ)
+      let pattern = PatternVariable(subject_type, location, name)
+      let n = dict.insert(n, name, subject_type)
       Ok(#(c, n, pattern))
     }
     g.PatternTuple(location:, elements:) -> {
-      // Infer types for all elements in the tuple pattern
+      // TODO: do we need to resolve subject_type first?
+      let res = case subject_type {
+        TupleType(elements: el_types) ->
+          // if the subject type is a tuple type, use the existing type
+          case list.length(elements) == list.length(el_types) {
+            True -> Ok(#(c, el_types))
+            False ->
+              Error(WrongArity(
+                context_location(c),
+                list.length(el_types),
+                list.length(elements),
+              ))
+          }
+        VariableType(..) -> {
+          // otherwise mint new type variables for the elements
+          let #(c, el_types) =
+            list.map_fold(elements, c, fn(c, _) { new_type_var_ref(c) })
+          use c <- result.map(unify(c, TupleType(el_types), subject_type))
+          #(c, el_types)
+        }
+        NamedType(..) | FunctionType(..) -> {
+          let #(c, el_types) = new_type_var_refs(c, elements)
+          Error(IncompatibleTypes(
+            context_location(c),
+            subject_type,
+            TupleType(el_types),
+          ))
+        }
+      }
+      use #(c, el_types) <- result.try(res)
+      // infer the pattern of each element against the subject's element types
       use #(c, n, elems) <- result.map(
-        list.try_fold(elements, #(c, n, []), fn(acc, elem) {
+        list.zip(elements, el_types)
+        |> list.try_fold(#(c, n, []), fn(acc, el) {
           let #(c, n, patterns) = acc
-          use #(c, n, pattern) <- result.map(infer_pattern(c, n, elem))
+          let #(el, el_type) = el
+          use #(c, n, pattern) <- result.map(infer_pattern(
+            c,
+            n,
+            el,
+            el_type,
+            None,
+          ))
           #(c, n, [pattern, ..patterns])
         }),
       )
+      // construct the inferred tuple type and pattern
       let elems = list.reverse(elems)
-
-      // Create the tuple type from the inferred element types
-      let typ = TupleType(list.map(elems, fn(e) { e.typ }))
-
-      #(c, n, PatternTuple(typ, location, elems))
+      let typ = TupleType(list.map(elems, fn(elem) { elem.typ }))
+      let pattern = PatternTuple(typ, location, elems)
+      #(c, n, pattern)
     }
     g.PatternList(location:, elements:, tail:) -> {
-      // Infer types for all elements in the list pattern
+      // TODO: do we need to resolve the subject_type first?
+      let res = case subject_type {
+        NamedType(module:, name:, parameters:, variant: _) -> {
+          case module == prelude && name == "List", parameters {
+            True, [el_type] -> Ok(#(c, subject_type, el_type))
+            _, _ -> {
+              let #(c, el_type) = new_type_var_ref(c)
+              Error(IncompatibleTypes(
+                context_location(c),
+                list_type(el_type),
+                subject_type,
+              ))
+            }
+          }
+        }
+        VariableType(..) -> {
+          let #(c, el_type) = new_type_var_ref(c)
+          let list_type = list_type(el_type)
+          use c <- result.map(unify(c, list_type, subject_type))
+          #(c, list_type, el_type)
+        }
+        TupleType(..) | FunctionType(..) -> {
+          let #(c, el_type) = new_type_var_ref(c)
+          Error(IncompatibleTypes(
+            context_location(c),
+            list_type(el_type),
+            subject_type,
+          ))
+        }
+      }
+      use #(c, list_type, el_type) <- result.try(res)
+
+      // Infer the pattern for all elements in the list pattern
       use #(c, n, elements) <- result.try(
         list.try_fold(elements, #(c, n, []), fn(acc, elem) {
           let #(c, n, patterns) = acc
-          use #(c, n, pattern) <- result.map(infer_pattern(c, n, elem))
+          use #(c, n, pattern) <- result.map(infer_pattern(
+            c,
+            n,
+            elem,
+            el_type,
+            None,
+          ))
           #(c, n, [pattern, ..patterns])
         }),
       )
       let elements = list.reverse(elements)
 
-      // Create a type variable for the element type
-      let #(c, elem_type) = new_type_var_ref(c)
-
-      // Unify all element types with the element type variable
-      use c <- result.try(
-        list.try_fold(elements, c, fn(c, elem) { unify(c, elem.typ, elem_type) }),
-      )
-
-      // Create the list type
-      let typ = NamedType(prelude, "List", [elem_type], None)
-
       // Handle the tail pattern if present
       use #(c, n, tail) <- result.map(case tail {
         Some(tail_pattern) -> {
-          use #(c, n, tail) <- result.try(infer_pattern(c, n, tail_pattern))
-          // The tail should be a list of the same type
-          use c <- result.map(unify(c, tail.typ, typ))
+          use #(c, n, tail) <- result.map(infer_pattern(
+            c,
+            n,
+            tail_pattern,
+            list_type,
+            None,
+          ))
           #(c, n, Some(tail))
         }
         None -> Ok(#(c, n, None))
       })
 
-      #(c, n, PatternList(typ, location, elements, tail))
+      #(c, n, PatternList(list_type, location, elements, tail))
     }
     g.PatternAssignment(location:, pattern:, name:) -> {
       // First, infer the type of the inner pattern
-      use #(c, n, pattern) <- result.map(infer_pattern(c, n, pattern))
+      use #(c, n, pattern) <- result.map(infer_pattern(
+        c,
+        n,
+        pattern,
+        subject_type,
+        subject_name,
+      ))
 
       // Create the PatternAssignment with the same type as the inner pattern
       let pattern = PatternAssignment(pattern.typ, location, pattern, name)
@@ -1717,8 +1804,13 @@ fn infer_pattern(
                   Ok(#(c, n, Utf32CodepointOption, Some(codepoint_type)))
                 g.SizeOption(size) -> Ok(#(c, n, SizeOption(size), None))
                 g.SizeValueOption(pattern) -> {
-                  use #(c, n, p) <- result.try(infer_pattern(c, n, pattern))
-                  use c <- result.map(unify(c, p.typ, int_type))
+                  use #(c, n, p) <- result.map(infer_pattern(
+                    c,
+                    n,
+                    pattern,
+                    int_type,
+                    None,
+                  ))
                   #(c, n, SizeValueOption(p), None)
                 }
                 g.UnitOption(unit) -> Ok(#(c, n, UnitOption(unit), None))
@@ -1740,8 +1832,13 @@ fn infer_pattern(
             None -> int_type
           }
 
-          use #(c, n, pattern) <- result.try(infer_pattern(c, n, pattern))
-          use c <- result.map(unify(c, pattern.typ, expected_type))
+          use #(c, n, pattern) <- result.map(infer_pattern(
+            c,
+            n,
+            pattern,
+            expected_type,
+            None,
+          ))
           #(c, n, [#(pattern, options), ..segs])
         }),
       )
@@ -1899,11 +1996,19 @@ fn infer_body(
           #(c, [statement, ..rest])
         }
         g.Assignment(location:, kind:, pattern:, annotation:, value:) -> {
+          // TODO: are we using the right order of operations here, or should annotation come before pattern?
+
           // infer value before binding the new variable
           use #(c, value) <- result.try(infer_expression(c, n, value))
 
           // infer pattern, annotation, and value
-          use #(c, n, pattern) <- result.try(infer_pattern(c, n, pattern))
+          use #(c, n, pattern) <- result.try(infer_pattern(
+            c,
+            n,
+            pattern,
+            value.typ,
+            None,
+          ))
 
           // if there is an annotation, the pattern must unify with the annotation
           use #(c, annotation) <- result.try(case annotation {
@@ -1914,10 +2019,6 @@ fn infer_body(
             }
             None -> Ok(#(c, None))
           })
-
-          // the pattern must unify with both the annotation
-          // and the assigned value
-          use c <- result.try(unify(c, pattern.typ, value.typ))
 
           // TODO check the right "kind" was used (needs exhaustive checking)
           use #(c, kind) <- result.try(case kind {
@@ -2592,9 +2693,14 @@ fn infer_expression(
                 list.try_fold(sub_pats, #(c, n, []), fn(acc, sub_pat) {
                   let #(c, n, pats) = acc
                   let #(sub, pat) = sub_pat
-                  use #(c, n, pat) <- result.try(infer_pattern(c, n, pat))
-                  // the pattern type should match the corresponding subject
-                  use c <- result.map(unify(c, pat.typ, sub.typ))
+                  // TODO: pass in subject name
+                  use #(c, n, pat) <- result.map(infer_pattern(
+                    c,
+                    n,
+                    pat,
+                    sub.typ,
+                    None,
+                  ))
                   #(c, n, [pat, ..pats])
                 }),
               )
@@ -3618,7 +3724,13 @@ fn infer_pattern_fields(
   use #(c, n, fields) <- result.map(
     list.try_fold(fields, #(c, n, []), fn(acc, field) {
       let #(c, n, done) = acc
-      use #(c, n, inferred) <- result.map(infer_pattern(c, n, field.item))
+      use #(c, n, inferred) <- result.map(infer_pattern(
+        c,
+        n,
+        field.item,
+        todo,
+        todo,
+      ))
       #(c, n, [map_field(field, fn(_) { inferred }), ..done])
     }),
   )
