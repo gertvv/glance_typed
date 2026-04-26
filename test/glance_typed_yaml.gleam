@@ -1,5 +1,4 @@
 import cymbal
-import glance
 import glance_typed as typed
 
 import gleam/int
@@ -499,31 +498,30 @@ fn field_to_yaml(
   )
 }
 
-fn binary_operator_to_string(operator: glance.BinaryOperator) -> String {
+fn binary_operator_to_string(operator: typed.BinaryOperator) -> String {
   case operator {
-    glance.And -> "&&"
-    glance.Or -> "||"
-    glance.Eq -> "=="
-    glance.NotEq -> "!="
-    glance.LtInt -> "<"
-    glance.LtEqInt -> "<="
-    glance.LtFloat -> "<."
-    glance.LtEqFloat -> "<=."
-    glance.GtEqInt -> ">="
-    glance.GtInt -> ">"
-    glance.GtEqFloat -> ">=."
-    glance.GtFloat -> ">."
-    glance.Pipe -> "|>"
-    glance.AddInt -> "+"
-    glance.AddFloat -> "+."
-    glance.SubInt -> "-"
-    glance.SubFloat -> "-."
-    glance.MultInt -> "*"
-    glance.MultFloat -> "*."
-    glance.DivInt -> "/"
-    glance.DivFloat -> "/."
-    glance.RemainderInt -> "%"
-    glance.Concatenate -> "<>"
+    typed.And -> "&&"
+    typed.Or -> "||"
+    typed.Eq -> "=="
+    typed.NotEq -> "!="
+    typed.LtInt -> "<"
+    typed.LtEqInt -> "<="
+    typed.LtFloat -> "<."
+    typed.LtEqFloat -> "<=."
+    typed.GtEqInt -> ">="
+    typed.GtInt -> ">"
+    typed.GtEqFloat -> ">=."
+    typed.GtFloat -> ">."
+    typed.AddInt -> "+"
+    typed.AddFloat -> "+."
+    typed.SubInt -> "-"
+    typed.SubFloat -> "-."
+    typed.MultInt -> "*"
+    typed.MultFloat -> "*."
+    typed.DivInt -> "/"
+    typed.DivFloat -> "/."
+    typed.RemainderInt -> "%"
+    typed.Concatenate -> "<>"
   }
 }
 
